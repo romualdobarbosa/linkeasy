@@ -1,0 +1,32 @@
+# Segredos e ambiente
+.env
+.venv
+.token.json
+node_modules/
+
+# Dados pessoais do Romualdo (mantidos localmente, fora do controle de versão)
+data/*.pdf
+data/Pasted_image.png
+data/Photos/
+data/banner/
+data/dennou-context.md
+data/contexto-olist.md
+data/resumo_sql.md
+data/storytelling_with_data.md
+
+# Conteúdo gerado / posts pessoais (a estrutura das pastas é preservada via .gitkeep)
+history/*.md
+!history/CONTEXT.md
+history/olist-churn-recompra/
+
+studio/for_review/*
+!studio/for_review/.gitkeep
+
+carousel_studio/rascunhos/*
+!carousel_studio/rascunhos/.gitkeep
+
+posting/published/*
+!posting/published/.gitkeep
+
+posting/queue/*
+!posting/queue/.gitkeep
