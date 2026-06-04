@@ -4,6 +4,30 @@ Pipeline de criação e publicação de conteúdo para o LinkedIn, orquestrado p
 
 O projeto nasceu como uma ferramenta pessoal para construir uma vitrine profissional na área de dados, e demonstra a arquitetura de um agente de conteúdo de ponta a ponta: prompt engineering organizado em skills, geração de assets visuais via render headless e integração com API externa.
 
+## Demonstração
+
+O carrossel abaixo não foi feito à mão. Eu dei um tema só ao linkeasy, "explique o próprio linkeasy para um recrutador", e ele tocou o processo inteiro: escreveu o texto, planejou os slides, aplicou a identidade visual e gerou o PDF. É a saída real da ferramenta, sem nenhum retoque meu.
+
+Pra mim, é a forma mais honesta de mostrar o que o linkeasy faz: deixo ele se explicar. Os slides abaixo estão na ordem em que saíram.
+
+<img src="docs/carrossel/slide-01.png" alt="Capa do carrossel: Eu não escrevi este carrossel" width="540">
+
+<details>
+<summary>Ver o carrossel completo (9 slides)</summary>
+
+<br>
+
+<img src="docs/carrossel/slide-02.png" alt="Slide 2" width="420">
+<img src="docs/carrossel/slide-03.png" alt="Slide 3" width="420">
+<img src="docs/carrossel/slide-04.png" alt="Slide 4: a estrutura do projeto" width="420">
+<img src="docs/carrossel/slide-05.png" alt="Slide 5: as skills" width="420">
+<img src="docs/carrossel/slide-06.png" alt="Slide 6: geração visual" width="420">
+<img src="docs/carrossel/slide-07.png" alt="Slide 7: publicação" width="420">
+<img src="docs/carrossel/slide-08.png" alt="Slide 8: engenharia" width="420">
+<img src="docs/carrossel/slide-09.png" alt="Slide 9: resumo" width="420">
+
+</details>
+
 ## Como funciona
 
 ```
@@ -98,3 +122,10 @@ python post.py
 ## Privacidade
 
 Dados pessoais (currículo, certificados, foto, posts publicados) ficam apenas na máquina local e são excluídos do versionamento via `.gitignore`. O repositório contém a engenharia do sistema e exemplos genéricos de template.
+
+## Contato
+
+Sou o Romualdo, trabalho com dados e tecnologia. Se quiser conversar sobre o projeto ou sobre oportunidades:
+
+- LinkedIn: https://www.linkedin.com/in/romualdo-barbosa-b43935244/
+- GitHub: https://github.com/romualdobarbosa
