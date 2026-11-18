@@ -31,6 +31,12 @@ posting/published/
 posting/queue/*
 !posting/queue/.gitkeep
 
+# Vozes pessoais: skills geradas pelo /criar-voz e amostras, entrevista e rodadas.
+# Só a voz fictícia de exemplo é versionada.
+.claude/skills/voz-*/
+!.claude/skills/voz-exemplo/
+data/voz/
+
 # Ferramentas
 __pycache__/
 .pytest_cache/
