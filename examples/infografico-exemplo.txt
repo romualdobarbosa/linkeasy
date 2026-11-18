@@ -1,0 +1,13 @@
+infographic sequence-steps-badge-card
+theme light
+data
+  title Antes de otimizar uma consulta SQL
+  sequences
+    - label Rode EXPLAIN
+      desc Veja o plano que o banco escolheu
+    - label Ache o maior custo
+      desc Junção, filtro ou ordenação
+    - label Compare estimado e real
+      desc Use EXPLAIN ANALYZE
+    - label Só então otimize
+      desc Índice, reescrita ou estatísticas
