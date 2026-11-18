@@ -9,10 +9,11 @@ Você está ajudando Romualdo a construir uma vitrine profissional no LinkedIn, 
 ```
 input (tema ou contexto)
         ↓
-   studio/           ← redator gera o texto do post
+   studio/           ← redator gera o texto do post (formato e tamanho)
         ↓
-  /humanizer         ← remove padrões de IA, ajusta voz
-        ↓              (padroes.py mede antes e depois, ver studio/CONTEXT.md)
+  voz ativa          ← skill em data/voz/ativa reescreve na voz da pessoa
+        ↓              e chama o /humanizer em modo embutido
+        ↓              (padroes.py mede rascunho x voz, ver studio/CONTEXT.md)
         ↓
      ┌──────────────────────┐
      ↓                      ↓
@@ -38,7 +39,9 @@ carousel_studio/      infographic/       ← escolha depende do formato
 
 | Skill | Quando usar |
 |---|---|
-| `/humanizer` | Sempre antes de aprovar um post, remove padrões de IA. Medido pelo `padroes.py` |
+| voz ativa (`voz-<slug>`) | Sempre antes de aprovar um post: reescreve na voz da pessoa e chama o `/humanizer`. Medida pelo `padroes.py` |
+| `/criar-voz` | Configurar o linkeasy para uma pessoa: cria a skill de voz dela e grava em `data/voz/ativa` |
+| `/humanizer` | Chamado pela voz ativa; direto só quando não há voz ativa |
 | `/carrossel` | Gera carrossel PDF de 8 a 12 slides a partir de tema ou post |
 | `/infografista` | Gera infográfico PNG a partir de post aprovado |
 
@@ -56,7 +59,7 @@ carousel_studio/      infographic/       ← escolha depende do formato
 | `history/` | Registro imutável dos posts publicados | `history/CONTEXT.md` |
 | `auth.py` | Etapa de publicação: OAuth 2.0 com o LinkedIn, grava `.token.json` | `README.md` |
 | `post.py` | Etapa de publicação: publica a fila vencida e move para `history/` | `posting/CONTEXT.md` |
-| `padroes.py` | Mede o `/humanizer`: conta padrões de IA antes e depois | `studio/CONTEXT.md` |
+| `padroes.py` | Mede a voz ativa: conta padrões de IA no rascunho do redator e na saída da voz | `studio/CONTEXT.md` |
 | `examples/` | Post, carrossel e infográfico genéricos, usados no smoke test do render | `tests/render-smoke.mjs` |
 | `tests/` | Testes do `auth.py` e do `post.py` (API mockada) e smoke test do render | `Makefile` |
 
@@ -67,6 +70,7 @@ carousel_studio/      infographic/       ← escolha depende do formato
 - Linguagem simples e direta
 - Sem hashtags, sem emojis, sem travessão (—)
 - Escreva na primeira pessoa, voz do Romualdo
+- O texto do post passa pela voz ativa: a skill cujo nome está em `data/voz/ativa` (uma linha, ex. `voz-exemplo`). Se o arquivo não existir, rode `/criar-voz` antes ou use `/humanizer` direto
 - Pergunte antes de fazer suposições
 - Nunca edite posts em `history/`, são registro histórico
 - Respeite o fluxo `studio → posting/queue → history` e nunca pule etapas
