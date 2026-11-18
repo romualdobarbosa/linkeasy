@@ -1,7 +1,9 @@
 import json
 import os
+import re
 import shutil
 import sys
+import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -14,7 +16,7 @@ load_dotenv()
 
 TOKEN_FILE = ".token.json"
 QUEUE_DIR = Path("posting/queue")
-PUBLISHED_DIR = Path("posting/published")
+HISTORY_DIR = Path("history")
 
 API_BASE = "https://api.linkedin.com/rest"
 # Versão da API (header LinkedIn-Version, formato AAAAMM). Última verificação: 2025-06.
@@ -146,23 +148,100 @@ def load_token(now: datetime | None = None) -> str:
     return token
 
 
-def parse_post(file: Path):
-    content = file.read_text(encoding="utf-8")
-    if not content.startswith("---"):
-        return None, content.strip()
+# Linha "chave: valor  # comentário opcional" do frontmatter.
+_FM_LINE = re.compile(r"^(?P<key>[A-Za-z_][\w-]*)\s*:\s*(?P<value>.*?)(?P<comment>\s+#.*)?$")
 
-    parts = content.split("---", 2)
-    if len(parts) < 3:
-        return None, content.strip()
 
+def _split_frontmatter(text: str) -> tuple[list[str], int] | None:
+    """(linhas com quebra, índice do --- de fechamento), ou None se não houver frontmatter."""
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].rstrip("\r\n") != "---":
+        return None
+    for i in range(1, len(lines)):
+        if lines[i].rstrip("\r\n") == "---":
+            return lines, i
+    return None
+
+
+def parse_post(file: Path) -> tuple[dict | None, str]:
+    text = file.read_text(encoding="utf-8")
+    split = _split_frontmatter(text)
+    if split is None:
+        return None, text.strip()
+    lines, end = split
     frontmatter = {}
-    for line in parts[1].strip().splitlines():
-        if ":" in line:
-            key, _, value = line.partition(":")
-            frontmatter[key.strip()] = value.strip()
+    for line in lines[1:end]:
+        match = _FM_LINE.match(line.rstrip("\r\n"))
+        if match:
+            frontmatter[match["key"]] = match["value"].strip()
+    return frontmatter, "".join(lines[end + 1 :]).strip()
 
-    body = parts[2].strip()
-    return frontmatter, body
+
+def _write_atomic(file: Path, data: bytes) -> None:
+    fd, tmp = tempfile.mkstemp(dir=file.parent, prefix=f".{file.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        shutil.copymode(file, tmp)
+        os.replace(tmp, file)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def update_frontmatter(file: Path, updates: dict[str, str]) -> None:
+    """Atualiza ou acrescenta chaves no frontmatter, sem mexer no resto do arquivo.
+
+    Linhas existentes (inclusive comentários) ficam na ordem; chave existente troca só o valor
+    e mantém o comentário da linha; chave nova entra antes do --- de fechamento. O corpo é
+    preservado byte a byte e a escrita é atômica (temporário + os.replace).
+    """
+    split = _split_frontmatter(file.read_bytes().decode("utf-8"))
+    if split is None:
+        raise PostError(f"{file.name}: sem frontmatter para atualizar")
+    lines, end = split
+    newline = "\r\n" if lines[0].endswith("\r\n") else "\n"
+    pending = dict(updates)
+    for i in range(1, end):
+        content = lines[i].rstrip("\r\n")
+        match = _FM_LINE.match(content)
+        if match and match["key"] in pending:
+            value = pending.pop(match["key"])
+            eol = lines[i][len(content) :]
+            lines[i] = f"{match['key']}: {value}{match['comment'] or ''}{eol}"
+    lines[end:end] = [f"{key}: {value}{newline}" for key, value in pending.items()]
+    _write_atomic(file, "".join(lines).encode("utf-8"))
+
+
+def _history_paths(post_file: Path) -> tuple[Path, Path, Path]:
+    """(destino do .md, pasta de imagens na fila, destino da pasta de imagens)."""
+    return (
+        HISTORY_DIR / post_file.name,
+        post_file.parent / post_file.stem,
+        HISTORY_DIR / post_file.stem,
+    )
+
+
+def check_history_free(post_file: Path) -> None:
+    dest, images_src, images_dest = _history_paths(post_file)
+    for target in (dest, images_dest if images_src.exists() else None):
+        if target is not None and target.exists():
+            raise PostError(f"{target} já existe; não vou sobrescrever o histórico, resolva à mão")
+
+
+def move_to_history(post_file: Path) -> None:
+    """Move o .md e a pasta de imagens homônima para HISTORY_DIR, sem sobrescrever nada.
+
+    A pasta vai primeiro: se cair no meio, a próxima execução só precisa mover o .md.
+    """
+    check_history_free(post_file)
+    dest, images_src, images_dest = _history_paths(post_file)
+    HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+    if images_src.is_dir():
+        shutil.move(str(images_src), str(images_dest))
+    shutil.move(str(post_file), str(dest))
 
 
 def get_tz() -> ZoneInfo:
@@ -278,44 +357,74 @@ def publish(token: str, text: str, image_paths: list[Path] | None = None) -> str
     return response.headers.get("x-restli-id", "")
 
 
-def main():
-    QUEUE_DIR.mkdir(parents=True, exist_ok=True)
-    PUBLISHED_DIR.mkdir(parents=True, exist_ok=True)
+def finish_handoff(post_file: Path, frontmatter: dict, now: datetime) -> None:
+    """Post que já tem post_id: não republica, só completa o estado e move para history/."""
+    print(f"{post_file.name}: já publicado ({frontmatter['post_id']}), concluindo o registro.")
+    updates = {}
+    if frontmatter.get("status") != "published":
+        updates["status"] = "published"
+    if not frontmatter.get("published_at"):
+        updates["published_at"] = format_local(now)
+    if updates:
+        update_frontmatter(post_file, updates)
+    move_to_history(post_file)
 
+
+def main(now: datetime | None = None) -> None:
+    """Publica os posts vencidos da fila. `now` fixo serve para testes.
+
+    Por post: (a) já tem post_id → só termina o registro; (b) senão publica e, logo após o
+    2xx, grava status/published_at/post_id no arquivo da fila; (c) move para history/.
+    Se a execução cair entre (b) e (c), a próxima cai em (a) e não publica de novo.
+    """
+    QUEUE_DIR.mkdir(parents=True, exist_ok=True)
     posts = sorted(QUEUE_DIR.glob("*.md"))
     if not posts:
         print("Nenhum post na fila.")
         return
 
-    token = load_token()
-    posted = 0
-
+    tz = get_tz()
+    token = None
+    done = 0
     for post_file in posts:
         frontmatter, body = parse_post(post_file)
-
         if frontmatter is None:
             print(f"Ignorando {post_file.name}: sem frontmatter.")
             continue
 
-        if frontmatter.get("status") == "posted":
+        if frontmatter.get("post_id"):
+            finish_handoff(post_file, frontmatter, now or datetime.now(tz))
+            done += 1
             continue
 
-        if not is_due(frontmatter, datetime.now(get_tz()), post_file.name):
+        if not is_due(frontmatter, now or datetime.now(tz), post_file.name):
             when = frontmatter["scheduled_at"]
             print(f"{post_file.name}: agendado para {when}, ainda não é a hora.")
             continue
 
+        check_history_free(post_file)
         image_paths = find_images(post_file)
+        if token is None:
+            token = load_token(now)
         suffix = f" + {len(image_paths)} imagem(ns)" if image_paths else ""
         print(f"Postando: {post_file.name}{suffix}")
-        publish(token, body, image_paths)
+        post_id = publish(token, body, image_paths)
+        if not post_id:
+            print("Aviso: a API não devolveu x-restli-id; gravando post_id desconhecido.")
+            post_id = "desconhecido"
+        update_frontmatter(
+            post_file,
+            {
+                "status": "published",
+                "published_at": format_local(now or datetime.now(tz)),
+                "post_id": post_id,
+            },
+        )
+        move_to_history(post_file)
+        print(f"Publicado ({post_id}) e movido para {HISTORY_DIR}/")
+        done += 1
 
-        dest = PUBLISHED_DIR / post_file.name
-        shutil.move(str(post_file), str(dest))
-        print("Publicado e movido para posting/published/")
-        posted += 1
-
-    if posted == 0:
+    if done == 0:
         print("Nenhum post para publicar agora.")
 
 
