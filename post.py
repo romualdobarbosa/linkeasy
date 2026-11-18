@@ -1,6 +1,8 @@
 import json
 import os
 import shutil
+import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -13,6 +15,91 @@ TOKEN_FILE = ".token.json"
 QUEUE_DIR = Path("posting/queue")
 PUBLISHED_DIR = Path("posting/published")
 PERSON_ID = os.getenv("LINKEDIN_PERSON_ID")
+
+API_BASE = "https://api.linkedin.com/rest"
+# Versão da API (header LinkedIn-Version, formato AAAAMM). Última verificação: 2025-06.
+# O LinkedIn tira versões de suporte em ~1 ano; quando isso acontecer a API passa a recusar
+# as chamadas e é preciso subir esta data. Não deu para conferir sem token: a API responde
+# 401 EMPTY_ACCESS_TOKEN antes de validar a versão.
+LINKEDIN_VERSION = "202506"
+
+TIMEOUT = (10, 60)  # (conexão, leitura) em segundos
+MAX_ATTEMPTS = 3
+BACKOFF_BASE = 2.0  # segundos; dobra a cada tentativa
+MAX_BACKOFF = 60.0
+
+
+class PostError(Exception):
+    """Erro esperado: vira mensagem curta no terminal e código de saída != 0."""
+
+
+def _sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+def _wait_time(response: requests.Response | None, attempt: int) -> float:
+    if response is not None:
+        retry_after = response.headers.get("Retry-After", "")
+        if retry_after.strip().isdigit():
+            return min(float(retry_after), MAX_BACKOFF)
+    return min(BACKOFF_BASE * 2 ** (attempt - 1), MAX_BACKOFF)
+
+
+def check_response(response: requests.Response, what: str) -> None:
+    if response.status_code == 401:
+        raise PostError("token expirado ou inválido, rode `uv run auth.py`")
+    if not response.ok:
+        raise PostError(f"{what} falhou: HTTP {response.status_code}: {response.text}")
+
+
+def request_with_retry(
+    method: str, url: str, what: str, *, retry_server_errors: bool = True, **kwargs
+) -> requests.Response:
+    """Faz a requisição com timeout e retenta 429 (e 5xx/queda de rede, se permitido).
+
+    Com retry_server_errors=False só retenta 429 e falha ao conectar (ConnectTimeout),
+    casos em que o servidor com certeza não processou o pedido.
+    """
+    kwargs.setdefault("timeout", TIMEOUT)
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        last = attempt == MAX_ATTEMPTS
+        try:
+            response = requests.request(method, url, **kwargs)
+        except requests.ConnectTimeout as exc:
+            if last:
+                raise PostError(f"{what} falhou: sem conexão com o LinkedIn ({exc})") from None
+            _sleep(_wait_time(None, attempt))
+            continue
+        except requests.RequestException as exc:
+            if last or not retry_server_errors:
+                raise PostError(f"{what} falhou: erro de rede ({exc})") from None
+            _sleep(_wait_time(None, attempt))
+            continue
+
+        status = response.status_code
+        retryable = status == 429 or (retry_server_errors and status >= 500)
+        if retryable and not last:
+            wait = _wait_time(response, attempt)
+            print(f"{what}: HTTP {status}, tentando de novo em {wait:.0f}s.", file=sys.stderr)
+            _sleep(wait)
+            continue
+        if status >= 500 and not retry_server_errors:
+            raise PostError(
+                f"{what} falhou: HTTP {status}: {response.text}\n"
+                "O post pode ter sido criado mesmo assim. Confira no LinkedIn antes de repetir."
+            )
+        check_response(response, what)
+        return response
+    raise AssertionError("inalcançável")  # pragma: no cover
+
+
+def api_headers(token: str) -> dict[str, str]:
+    return {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "LinkedIn-Version": LINKEDIN_VERSION,
+        "X-Restli-Protocol-Version": "2.0.0",
+    }
 
 
 def load_token():
@@ -48,34 +135,28 @@ def is_due(scheduled_at: str) -> bool:
 
 
 def upload_image(token: str, image_path: Path) -> str:
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-        "LinkedIn-Version": "202506",
-        "X-Restli-Protocol-Version": "2.0.0",
-    }
-
-    init_response = requests.post(
-        "https://api.linkedin.com/rest/images?action=initializeUpload",
-        headers=headers,
+    init_response = request_with_retry(
+        "POST",
+        f"{API_BASE}/images?action=initializeUpload",
+        "initializeUpload",
+        headers=api_headers(token),
         json={"initializeUploadRequest": {"owner": f"urn:li:person:{PERSON_ID}"}},
     )
-    init_response.raise_for_status()
     data = init_response.json()["value"]
     upload_url = data["uploadUrl"]
     image_urn = data["image"]
 
-    with open(image_path, "rb") as f:
-        upload_response = requests.put(
-            upload_url,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/octet-stream",
-            },
-            data=f,
-        )
-    upload_response.raise_for_status()
-
+    request_with_retry(
+        "PUT",
+        upload_url,
+        f"upload de {image_path.name}",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/octet-stream",
+        },
+        # bytes, não o arquivo aberto: num retry o conteúdo precisa ser reenviado inteiro
+        data=image_path.read_bytes(),
+    )
     return image_urn
 
 
@@ -89,13 +170,8 @@ def find_images(post_file: Path) -> list[Path]:
     return sorted(images)
 
 
-def publish(token: str, text: str, image_paths: list[Path] | None = None):
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-        "LinkedIn-Version": "202506",
-        "X-Restli-Protocol-Version": "2.0.0",
-    }
+def publish(token: str, text: str, image_paths: list[Path] | None = None) -> str:
+    """Publica o post e devolve o ID (header x-restli-id da resposta)."""
     body = {
         "author": f"urn:li:person:{PERSON_ID}",
         "commentary": text,
@@ -122,15 +198,20 @@ def publish(token: str, text: str, image_paths: list[Path] | None = None):
                 images.append({"id": image_urn, "altText": image_path.stem})
             body["content"] = {"multiImage": {"images": images}}
 
-    response = requests.post(
-        "https://api.linkedin.com/rest/posts",
-        headers=headers,
+    # Criar post não é idempotente: se o LinkedIn criou o post e respondeu 5xx (ou a conexão
+    # caiu depois do envio), retentar publicaria duas vezes. Por isso aqui só há retry em 429
+    # e em falha ao conectar, quando o pedido com certeza não foi processado. Em 5xx a
+    # execução para e é preciso conferir no LinkedIn antes de rodar de novo.
+    response = request_with_retry(
+        "POST",
+        f"{API_BASE}/posts",
+        "publicação do post",
+        retry_server_errors=False,
+        headers=api_headers(token),
         json=body,
     )
-    if not response.ok:
-        print(f"Erro {response.status_code}: {response.text}")
-    response.raise_for_status()
-    return response
+    # A API devolve o ID do post criado no header x-restli-id (ex.: urn:li:share:123).
+    return response.headers.get("x-restli-id", "")
 
 
 def main():
@@ -174,5 +255,14 @@ def main():
         print("Nenhum post para publicar agora.")
 
 
+def run() -> int:
+    try:
+        main()
+    except PostError as exc:
+        print(f"Erro: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
 if __name__ == "__main__":
-    main()
+    sys.exit(run())
