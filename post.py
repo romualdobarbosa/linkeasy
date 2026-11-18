@@ -31,6 +31,9 @@ DATE_FORMAT = "%Y-%m-%d %H:%M"
 
 TOKEN_WARN_DAYS = 7
 
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
+MAX_IMAGES = 20  # multiImage aceita de 2 a 20 imagens
+
 TIMEOUT = (10, 60)  # (conexão, leitura) em segundos
 MAX_ATTEMPTS = 3
 BACKOFF_BASE = 2.0  # segundos; dobra a cada tentativa
@@ -304,13 +307,28 @@ def upload_image(token: str, image_path: Path) -> str:
 
 
 def find_images(post_file: Path) -> list[Path]:
+    """Imagens da pasta homônima do post (png/jpg/jpeg), em ordem de nome."""
     image_dir = post_file.parent / post_file.stem
     if not image_dir.is_dir():
         return []
-    images = []
-    for ext in ("*.png", "*.jpg", "*.jpeg"):
-        images.extend(image_dir.glob(ext))
-    return sorted(images)
+    images, ignored = [], []
+    for item in sorted(image_dir.iterdir()):
+        if item.name.startswith("."):
+            continue
+        if item.is_file() and item.suffix.lower() in IMAGE_EXTENSIONS:
+            images.append(item)
+        else:
+            ignored.append(item.name)
+    if ignored:
+        print(f"Aviso: ignorando em {image_dir.name}/ (não é png/jpg/jpeg): {', '.join(ignored)}")
+    if len(images) > MAX_IMAGES:
+        raise PostError(
+            f"{image_dir.name}/ tem {len(images)} imagens; o LinkedIn aceita no máximo {MAX_IMAGES}"
+        )
+    if len(images) > 1:
+        names = ", ".join(i.name for i in images)
+        print(f"Aviso: {len(images)} imagens, vai como multiImage: {names}")
+    return images
 
 
 def publish(token: str, text: str, image_paths: list[Path] | None = None) -> str:

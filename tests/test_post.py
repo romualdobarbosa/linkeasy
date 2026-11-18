@@ -265,6 +265,43 @@ def test_token_arquivo_corrompido(token_file):
 # --- imagens ------------------------------------------------------------------------------
 
 
+def cria_pasta(tmp_path, nomes):
+    pasta = tmp_path / "meu-post"
+    pasta.mkdir()
+    for nome in nomes:
+        (pasta / nome).write_bytes(b"x")
+    return tmp_path / "meu-post.md"
+
+
+def test_find_images_sem_pasta(tmp_path):
+    assert post.find_images(tmp_path / "meu-post.md") == []
+
+
+def test_find_images_uma_imagem_sem_aviso(tmp_path, capsys):
+    arquivo = cria_pasta(tmp_path, ["capa.png", ".DS_Store"])
+    assert [i.name for i in post.find_images(arquivo)] == ["capa.png"]
+    assert capsys.readouterr().out == ""
+
+
+def test_find_images_varias_e_ignoradas_avisam(tmp_path, capsys):
+    arquivo = cria_pasta(tmp_path, ["2.JPG", "1.png", "notas.txt", "3.jpeg", "video.mp4"])
+    assert [i.name for i in post.find_images(arquivo)] == ["1.png", "2.JPG", "3.jpeg"]
+    out = capsys.readouterr().out
+    assert "notas.txt, video.mp4" in out
+    assert "3 imagens, vai como multiImage" in out
+
+
+def test_find_images_acima_do_limite(tmp_path):
+    arquivo = cria_pasta(tmp_path, [f"{i:02}.png" for i in range(post.MAX_IMAGES + 1)])
+    with pytest.raises(post.PostError, match="no máximo 20"):
+        post.find_images(arquivo)
+
+
+def test_find_images_no_limite(tmp_path):
+    arquivo = cria_pasta(tmp_path, [f"{i:02}.png" for i in range(post.MAX_IMAGES)])
+    assert len(post.find_images(arquivo)) == post.MAX_IMAGES
+
+
 @responses.activate
 def test_upload_de_uma_imagem_usa_media(tmp_path):
     img = tmp_path / "capa.png"
