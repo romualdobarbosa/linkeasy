@@ -94,12 +94,18 @@ O formato do frontmatter e as regras da fila estão em `posting/CONTEXT.md`.
 
 **Skills especializadas em vez de vários agentes.** Cada etapa (redação, humanização, carrossel, infográfico) é uma skill com instruções próprias, chamada pelo mesmo agente. O fluxo é linear, então um agente chamando as skills em sequência dá conta, sem nenhuma comunicação entre agentes. E quando uma etapa sai ruim, o ajuste fica num arquivo só.
 
-**Carrossel em PDF publicado à mão.** O `post.py` só envia imagens png, jpg e jpeg. Não implementei o upload de documento, então o PDF do carrossel eu subo direto no LinkedIn.
+**Carrossel em PDF publicado à mão.** O `post.py` só envia imagens png, jpg e jpeg. A API do LinkedIn aceita PDF, mas eu quase não vejo carrossel no meu feed e publico bem mais post com imagem, então não compensou manter mais um fluxo de upload. O raciocínio completo está em [`docs/adr/0001-carrossel-pdf-publicado-a-mao.md`](docs/adr/0001-carrossel-pdf-publicado-a-mao.md).
+
+## Bugs que valeram a pena
+
+**O post que podia sair duas vezes.** A primeira versão do `post.py` publicava e só depois movia o arquivo da fila. Achei isso relendo o código. Se o processo caísse entre um passo e outro (queda de rede, notebook fechado), o arquivo continuava na fila e a próxima execução publicava o mesmo post de novo, e no LinkedIn não tem como desfazer isso sem apagar à mão. A correção foi gravar o `post_id` que a API devolve antes de mover, e tratar post com ID como já publicado. É o mesmo raciocínio de entrega at-least-once com deduplicação, e tem um teste que simula a queda exatamente entre os dois passos.
+
+**O código que quebrou sem ninguém mexer nele.** A API do LinkedIn exige o header `LinkedIn-Version` e desativa cada versão depois de mais ou menos um ano. O `post.py` usava a 202506 fixa, e em novembro de 2026 ela já não existia mais. O repositório não tinha mudado nada, mas a próxima publicação ia falhar. Sem token a API responde 401 antes de olhar a versão, então o teste óbvio (chamar sem credencial) não mostrava o problema. Só com uma chamada de leitura autenticada apareceu o 426 `NONEXISTENT_VERSION`. Testei as versões mês a mês, subi pra 202611 e deixei a versão numa constante só, com a data da última conferência.
 
 ## Limitações
 
 - A versão da API (`LinkedIn-Version: 202611`, constante `LINKEDIN_VERSION` no `post.py`) foi conferida em 18/11/2026. O LinkedIn tira cada versão de suporte em cerca de um ano e aí responde 426 `NONEXISTENT_VERSION`. Foi assim que descobri que a 202506, que eu usava antes, já tinha saído. Quando esse erro aparecer, é essa constante que precisa subir.
-- Carrossel em PDF não é publicado pelo `post.py` (ver acima).
+- Carrossel em PDF não é publicado pelo `post.py` (ver a ADR 0001).
 - O access token do LinkedIn expira. O prazo vem no `expires_in` da resposta (em torno de 60 dias). O `post.py` recusa token vencido, avisa quando faltam menos de 7 dias, e aí é rodar `uv run auth.py` de novo. Não há refresh token.
 - Roda local e não tem agendador. O `scheduled_at` diz a partir de quando o post pode sair, mas alguém precisa executar o `post.py`, à mão ou por um cron configurado na própria máquina.
 - Sobra uma janela pequena para publicação duplicada, entre o 2xx da API e a gravação do `post_id` no arquivo. Se o processo morrer exatamente ali, o post não tem ID gravado e sai de novo na próxima execução.
