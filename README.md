@@ -1,14 +1,18 @@
 # linkeasy
 
-Pipeline de criação e publicação de conteúdo para o LinkedIn, orquestrado por um agente de IA. O `linkeasy` transforma um tema em um post pronto (texto + visual) e automatiza a publicação via API do LinkedIn, seguindo um fluxo definido de criação, humanização, geração visual e fila de publicação.
+Eu queria manter uma presença constante no LinkedIn falando de dados, sem passar a noite escrevendo, montando slide e lembrando de publicar na hora certa. O linkeasy é o pipeline que montei pra isso. Eu dou um tema, ele entrega o texto e o visual prontos e publica o post no horário que eu marquei.
 
-O projeto nasceu como uma ferramenta pessoal para construir uma vitrine profissional na área de dados, e demonstra a arquitetura de um agente de conteúdo de ponta a ponta: prompt engineering organizado em skills, geração de assets visuais via render headless e integração com API externa.
+**TL;DR (English).** linkeasy is a LinkedIn content pipeline orchestrated by an AI agent (Claude Code) with specialized skills. From a single topic it drafts the post, strips AI writing patterns, renders a PDF carousel or a PNG infographic with Playwright, and queues the post with a schedule. A Python script publishes due posts through the LinkedIn REST API (OAuth 2.0) and records the returned post ID before moving the file to history, so a run that crashes before the move does not publish the same post again. Publishing code is covered by pytest with the API mocked, and CI runs lint, tests and a render smoke test.
+
+[![CI](https://github.com/romualdobarbosa/linkeasy/actions/workflows/ci.yml/badge.svg)](https://github.com/romualdobarbosa/linkeasy/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
 
 ## Demonstração
 
-O carrossel abaixo não foi feito à mão. Eu dei um tema só ao linkeasy, "explique o próprio linkeasy para um recrutador", e ele tocou o processo inteiro: escreveu o texto, planejou os slides, aplicou a identidade visual e gerou o PDF. É a saída real da ferramenta, sem nenhum retoque meu.
+O carrossel abaixo não foi feito à mão. Eu dei um tema só ao linkeasy, "explique o próprio linkeasy para um recrutador", e ele tocou o processo inteiro. Escreveu o texto, planejou os slides, aplicou a identidade visual e gerou o PDF. É a saída real da ferramenta, sem nenhum retoque meu.
 
-Pra mim, é a forma mais honesta de mostrar o que o linkeasy faz: deixo ele se explicar. Os slides abaixo estão na ordem em que saíram.
+Pra mim, é a forma mais honesta de mostrar o que o linkeasy faz. Deixo ele se explicar. Os slides abaixo estão na ordem em que saíram.
 
 <img src="docs/carrossel/slide-01.png" alt="Capa do carrossel: Eu não escrevi este carrossel" width="540">
 
@@ -28,100 +32,164 @@ Pra mim, é a forma mais honesta de mostrar o que o linkeasy faz: deixo ele se e
 
 </details>
 
+## Em números
+
+| Métrica | Valor | De onde vem |
+|---|---|---|
+| Posts publicados no LinkedIn pela ferramenta | 3 | Registro local dos posts publicados (arquivos com `published_at`), fora do repositório por ser conteúdo pessoal. Não conta um post de teste. |
+| Carrosséis renderizados | 4 | PDFs gerados localmente em `carousel_studio/rascunhos/`. Um deles é a demonstração deste README. |
+| Testes automatizados | 78 | `make test` (pytest), roda no CI a cada push |
+| Cobertura de `post.py` e `auth.py` | 99% (3 de 412 linhas sem cobertura) | `make test` (pytest-cov), roda no CI a cada push |
+
 ## Como funciona
 
-```
-input (tema ou contexto)
-        │
-        ▼
-   studio/            ← redator gera o texto do post
-        │
-        ▼
-  /humanizer          ← remove padrões de escrita de IA, ajusta a voz
-        │
-        ├──────────────────────┐
-        ▼                      ▼
- /carrossel             /infografista       ← escolha conforme o formato
- (PDF 8–12 slides)      (PNG, 1 imagem)
-        │                      │
-        └──────────────────────┘
-        │
-        ▼
-   posting/queue/      ← aguarda publicação (com agendamento)
-        │
-        ▼
-     history/          ← registro imutável após publicar
+```mermaid
+flowchart TD
+    tema["Tema ou contexto"] --> redator["studio/: redator escreve o texto"]
+    redator --> humanizer["/humanizer: tira padrões de escrita de IA"]
+    humanizer --> carrossel["/carrossel: PDF de 8 a 12 slides"]
+    humanizer --> infografico["/infografista: PNG de 1 imagem"]
+    carrossel --> fila["posting/queue/: post com scheduled_at"]
+    infografico --> fila
+    fila --> post["post.py"]
+    post --> api["API REST do LinkedIn"]
+    post --> history["history/: registro com post_id"]
+    auth["auth.py: OAuth 2.0"] --> token[".token.json"]
+    token --> post
 ```
 
-**Quando usar cada formato visual:**
+Da ideia até a fila, é um pipeline de conteúdo orquestrado por agente de IA (Claude Code) com skills especializadas. Um agente só segue o fluxo descrito no `CLAUDE.md` e chama a skill de cada etapa. A publicação fica com dois scripts Python que rodam fora do agente.
 
-- **`/carrossel`** — conteúdo com estrutura de lista, passos ou narrativa em vários pontos. Exporta um PDF de 8 a 12 slides.
-- **`/infografista`** — conteúdo com um dado central, comparação ou sequência curta. Gera uma imagem PNG.
+O formato visual depende do conteúdo:
 
-## Skills
+- `/carrossel` quando o post tem estrutura de lista, passos ou uma narrativa com vários pontos. Exporta um PDF de 8 a 12 slides.
+- `/infografista` quando o post tem um dado central, uma comparação ou uma sequência curta. Gera uma imagem PNG.
 
-As skills são as etapas do pipeline implementadas como prompts especializados (em `.claude/skills/`):
+### Skills
+
+As skills ficam em `.claude/skills/`, cada uma é um arquivo de instruções para uma etapa.
 
 | Skill | Função |
 |---|---|
 | `/humanizer` | Remove sinais de escrita gerada por IA antes de aprovar um post |
-| `/carrossel` | Planeja e renderiza um carrossel PDF a partir de um tema ou post |
-| `/infografista` | Escolhe um template e renderiza um infográfico PNG a partir de um post aprovado |
+| `/carrossel` | Planeja os slides em HTML e renderiza o PDF com Playwright (`carousel_studio/render.mjs`) |
+| `/infografista` | Escolhe um template do AntV Infographic e renderiza o PNG com Playwright (`infographic/render.mjs`) |
 
-A geração de carrossel e do banner usa **HTML + Playwright** (renderização headless para PDF/imagem); o infográfico usa **AntV Infographic** + Playwright.
+O texto do post vem do redator, cujas regras estão em `studio/redator.md`.
+
+### Publicação
+
+- `auth.py` faz o fluxo OAuth 2.0. Abre o navegador, recebe o código num servidor local em `http://localhost:8000/callback`, troca por um access token e salva em `.token.json` com a data de obtenção e permissão 0600.
+- `post.py` lê `posting/queue/*.md`, publica os posts cujo `scheduled_at` já passou (horário de America/Sao_Paulo, ou do fuso em `LINKEASY_TZ`) e move cada um, junto com a pasta de imagens, para `history/`. Uma imagem vai como imagem única, de 2 a 20 vão como multiImage.
+
+O formato do frontmatter e as regras da fila estão em `posting/CONTEXT.md`.
+
+## Decisões e trade-offs
+
+**Publicação sem duplicar.** Criar post na API do LinkedIn não é idempotente. Se o script publicasse e só depois movesse o arquivo, uma queda entre os dois passos faria a próxima execução publicar de novo. Por isso, logo depois do 2xx, o `post.py` grava `status: published`, `published_at` e o `post_id` (header `x-restli-id`) no frontmatter, com escrita atômica, e só então move para `history/`. Na execução seguinte, post com `post_id` não é publicado de novo, só tem o registro concluído. É entrega at-least-once com deduplicação pelo ID. Se o destino já existir em `history/`, o script para em vez de sobrescrever.
+
+**Não repetir a criação do post em erro 5xx.** O retry com backoff vale para 429 em qualquer chamada. Erro 5xx e queda de conexão no meio da leitura só são repetidos no upload de imagem. Na criação do post, um 5xx pode significar que o LinkedIn criou o post e falhou depois, então o script para e pede pra conferir no LinkedIn antes de rodar de novo. O preço é conferir à mão de vez em quando, e em troca não aparece post duplicado no perfil.
+
+**`state` aleatório no OAuth.** O `auth.py` gera um `state` novo a cada execução com `secrets.token_urlsafe` e confere no callback com `secrets.compare_digest`. Callback com `state` errado é descartado. É o que impede outra página de injetar um código de autorização no meu servidor local.
+
+**Skills especializadas em vez de vários agentes.** Cada etapa (redação, humanização, carrossel, infográfico) é uma skill com instruções próprias, chamada pelo mesmo agente. O fluxo é linear, então um agente chamando as skills em sequência dá conta, sem nenhuma comunicação entre agentes. E quando uma etapa sai ruim, o ajuste fica num arquivo só.
+
+**Carrossel em PDF publicado à mão.** O `post.py` só envia imagens png, jpg e jpeg. Não implementei o upload de documento, então o PDF do carrossel eu subo direto no LinkedIn.
+
+## Limitações
+
+- A versão da API (`LinkedIn-Version: 202506`, constante `LINKEDIN_VERSION` no `post.py`) foi verificada pela última vez em junho de 2025. O LinkedIn tira versões de suporte com o tempo e não consegui confirmar se essa ainda responde, porque sem token a API devolve 401 antes de validar a versão. Se as chamadas começarem a ser recusadas, é essa constante que precisa subir.
+- Carrossel em PDF não é publicado pelo `post.py` (ver acima).
+- O access token do LinkedIn expira. O prazo vem no `expires_in` da resposta (em torno de 60 dias). O `post.py` recusa token vencido, avisa quando faltam menos de 7 dias, e aí é rodar `uv run auth.py` de novo. Não há refresh token.
+- Roda local e não tem agendador. O `scheduled_at` diz a partir de quando o post pode sair, mas alguém precisa executar o `post.py`, à mão ou por um cron configurado na própria máquina.
+- Sobra uma janela pequena para publicação duplicada, entre o 2xx da API e a gravação do `post_id` no arquivo. Se o processo morrer exatamente ali, o post não tem ID gravado e sai de novo na próxima execução.
+- Os testes do `post.py` e do `auth.py` usam a API mockada (`responses`). Os 3 posts de "Em números" saíram por uma versão anterior do `post.py`. O que entrou depois (gravação do `post_id`, retry, multiImage, checagem do token) eu testei só com a API mockada, ainda não contra a API real.
+
+## Como rodar
+
+Requisitos: [uv](https://docs.astral.sh/uv/) (ele instala o Python 3.12 se faltar) e Node.js 18 ou mais novo.
+
+### Caminho rápido: renderizar os exemplos
+
+Não precisa de conta no LinkedIn. Gera o carrossel e o infográfico de `examples/`:
+
+```bash
+npm ci
+npx playwright install chromium
+
+node carousel_studio/render.mjs --input examples/carrossel-exemplo.html --output carrossel.pdf
+node infographic/render.mjs --input examples/infografico-exemplo.txt --output infografico.png
+```
+
+### Caminho completo: publicar no LinkedIn
+
+1. Crie um app em https://www.linkedin.com/developers/ que libere os escopos `openid`, `profile` e `w_member_social`, com o redirect `http://localhost:8000/callback`.
+2. Instale as dependências e preencha o `.env`:
+
+   ```bash
+   uv sync
+   npm ci
+   npx playwright install chromium
+   cp .env.example .env   # LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET, LINKEDIN_PERSON_ID
+   ```
+
+3. Autentique e publique a fila:
+
+   ```bash
+   uv run auth.py
+   uv run post.py
+   ```
+
+Para testar a fila, copie `examples/post-exemplo.md` para `posting/queue/` e ajuste o `scheduled_at`. Cuidado, com a data no passado o `post.py` publica de verdade no seu perfil.
+
+O `auth.py` sai com código 0 quando salva o token, 1 em falha do fluxo e 2 quando faltam credenciais no `.env` (nesse caso nem abre o navegador). O `post.py` sai com 0 ou 1.
+
+## Desenvolvimento
+
+```bash
+uv sync
+uv run pre-commit install   # ruff check e ruff format a cada commit
+
+make lint           # ruff check + ruff format --check
+make test           # pytest com cobertura de post.py e auth.py
+make render-smoke   # renderiza examples/ e confere o PDF e o PNG (precisa de npm ci e do Chromium)
+make all            # os três
+```
+
+O CI (GitHub Actions, `.github/workflows/ci.yml`) roda `make lint` e `make test` a cada push e pull request, e num job separado roda o smoke test do render. Esse smoke test gera o PDF do carrossel de exemplo e confere se tem uma página por slide, e gera o PNG do infográfico de exemplo por stdin e por `--input`.
 
 ## Estrutura
 
-| Pasta | Propósito |
+| Pasta ou arquivo | Propósito |
 |---|---|
-| `data/` | Insumos de entrada (currículo, certificados, notas) — usados para alimentar os posts. Conteúdo pessoal fica fora do versionamento. |
+| `data/` | Insumos para os posts (currículo, certificados, notas). O conteúdo pessoal fica fora do versionamento. |
 | `studio/` | Criação do texto dos posts (`redator.md` define as regras de escrita) |
-| `carousel_studio/` | Criação de carrosséis em PDF (templates HTML + renderizador) |
-| `infographic/` | Gerador de infográficos PNG (templates de exemplo em `Samples/`) |
-| `posting/` | Fila de publicação com agendamento (`queue/` → `published/`) |
+| `carousel_studio/` | Carrosséis em PDF (templates HTML e o renderizador `render.mjs`) |
+| `infographic/` | Infográficos PNG (renderizador `render.mjs` e modelos em `Samples/`) |
+| `posting/queue/` | Fila de publicação com agendamento |
 | `history/` | Registro imutável dos posts publicados |
+| `auth.py`, `post.py` | Autenticação e publicação na API do LinkedIn |
+| `examples/` | Post, carrossel e infográfico genéricos |
+| `tests/` | Testes do `auth.py` e do `post.py` e smoke test do render |
+| `.claude/skills/` | As skills do pipeline |
 
-Cada pasta tem um `CONTEXT.md` que documenta seu papel no fluxo. O `CLAUDE.md` na raiz define a identidade do agente e as regras globais.
-
-## Publicação (API do LinkedIn)
-
-Dois scripts em Python automatizam a publicação:
-
-- **`auth.py`** — fluxo OAuth 2.0: abre o navegador, captura o código de autorização via servidor local e troca por um access token (`w_member_social`), salvo em `.token.json`.
-- **`post.py`** — lê os posts em `posting/queue/`, respeita o agendamento (`scheduled_at`), faz upload da imagem (quando houver) e publica via API REST do LinkedIn, movendo o post para `posting/published/`.
-
-> Posts com texto + imagem única são publicados automaticamente. Carrosséis em PDF ainda são publicados manualmente (limitação da API).
-
-## Setup
-
-Requisitos: Python 3.10+ e Node.js 18+.
-
-```bash
-# 1. Dependências Python
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# 2. Dependências Node (Playwright + AntV)
-npm install
-npx playwright install chromium
-
-# 3. Credenciais da API do LinkedIn
-cp .env.example .env   # preencha com os dados do seu app LinkedIn
-
-# 4. Autenticar e publicar a fila
-python auth.py
-python post.py
-```
+Cada pasta do fluxo tem um `CONTEXT.md` com o papel dela. O `CLAUDE.md` na raiz define a identidade do agente e as regras gerais.
 
 ## Stack
 
-- **Agente / orquestração:** Claude Code (skills + `CLAUDE.md`)
-- **Publicação:** Python (`requests`, `python-dotenv`), API REST do LinkedIn, OAuth 2.0
-- **Renderização visual:** Node.js, Playwright, AntV Infographic, HTML/CSS
+- Orquestração: Claude Code, com skills em `.claude/skills/` e regras no `CLAUDE.md`
+- Publicação: Python 3.12, requests, python-dotenv, LinkedIn REST API (Posts API e Images API), OAuth 2.0
+- Renderização: Node.js, Playwright (Chromium headless), AntV Infographic, HTML e CSS
+- Qualidade: uv, Ruff, pre-commit, pytest, pytest-cov, responses
+- CI/CD: GitHub Actions
 
 ## Privacidade
 
-Dados pessoais (currículo, certificados, foto, posts publicados) ficam apenas na máquina local e são excluídos do versionamento via `.gitignore`. O repositório contém a engenharia do sistema e exemplos genéricos de template.
+Dados pessoais (currículo, certificados, foto, posts publicados) ficam só na minha máquina e estão no `.gitignore`. O repositório tem a engenharia do sistema e exemplos genéricos.
+
+## Licença
+
+MIT, veja `LICENSE`.
 
 ## Contato
 
