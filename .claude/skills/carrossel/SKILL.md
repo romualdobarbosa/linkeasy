@@ -3,8 +3,8 @@ name: carrossel
 version: 1.0.0
 description: |
   Gera um carrossel PDF para LinkedIn a partir de um tema ou post aprovado.
-  Planeja os slides, aplica a identidade visual do Romualdo e exporta como PDF
-  via HTML + Playwright.
+  Planeja os slides, aplica a identidade visual da pessoa (data/identidade.md)
+  e exporta como PDF via HTML + Playwright.
 allowed-tools:
   - Read
   - Write
@@ -27,7 +27,33 @@ Exemplos:
 /carrossel studio/for_review/post-carreira.md
 ```
 
-Se nenhum tema ou arquivo for fornecido, pergunte ao Romualdo o que ele quer cobrir.
+Se nenhum tema ou arquivo for fornecido, pergunte à pessoa o que ela quer cobrir.
+
+---
+
+## Identidade visual: de onde vem
+
+Antes de planejar, leia a identidade:
+
+1. `data/identidade.md`, a identidade da pessoa dona da instalação.
+2. Se não existir, use `examples/identidade-exemplo.md` (Lia Fontes, fictícia) e avise: "esta instalação não tem identidade visual configurada; o carrossel vai sair com a identidade de exemplo. Rode `/criar-voz` para configurar a sua."
+
+O formato do arquivo e o papel de cada cor estão documentados em `examples/identidade-exemplo.md`. Campos usados aqui: `nome`, `tagline`, `foto` (opcional), `linha_de_seguir` e as cinco `cor_*`.
+
+**Como a identidade entra no HTML:**
+- **Cores:** todo HTML gerado começa com um bloco `:root` que define uma variável CSS por papel, com o hex lido da identidade. Fora desse bloco, nenhuma cor é escrita em hex: tudo usa `var(--cor-...)`.
+
+  ```css
+  :root {
+    --cor-fundo-impacto: {{cor_fundo_impacto}};
+    --cor-fundo-principal: {{cor_fundo_principal}};
+    --cor-acento-principal: {{cor_acento_principal}};
+    --cor-acento-secundario: {{cor_acento_secundario}};
+    --cor-acento-terciario: {{cor_acento_terciario}};
+  }
+  ```
+- **Textos e foto:** `{{nome}}`, `{{tagline}}`, `{{linha_de_seguir}}` e `{{foto}}` viram o valor do campo de mesmo nome. A foto é relativa à raiz do repo; como o HTML fica em `carousel_studio/rascunhos/`, o `src` é `../../{{foto}}`.
+- Antes de renderizar, confira que não sobrou nenhum `{{` no HTML.
 
 ---
 
@@ -60,8 +86,8 @@ A capa usa um dos quatro templates de `carousel_studio/data/capas-template.html`
 | Capa Queda | Hook de alerta — use quando o post gira em torno de um erro comum, armadilha ou comportamento a evitar. Gatilhos: "não caia nesse erro", "pare de fazer isso", "todo mundo faz assim e está errado", "evite esta armadilha" | "Se todo mundo faz assim..." |
 
 **Como usar o template:**
-1. Copie o slide correspondente de `carousel_studio/data/capas-template.html`
-2. Substitua o texto placeholder pelo hook real
+1. Copie o slide correspondente de `carousel_studio/data/capas-template.html` (o slide usa `var(--cor-...)`, então o bloco `:root` do HTML precisa estar preenchido)
+2. Substitua o texto placeholder pelo hook real e `{{nome}}` pelo nome da identidade
 3. Na Capa 1, ajuste a largura dos blocos conforme o comprimento de cada palavra
 4. Na Capa Queda, o bloco escuro à direita é placeholder — substitua por `<img>` quando houver foto
 
@@ -105,15 +131,15 @@ Elementos:
 
 Regras para o SVG:
 - Dimensões do gráfico: máximo 600px de largura e 380px de altura dentro da safe-area
-- Usar somente cores da paleta oficial
+- Usar somente cores da paleta da identidade
 - Eixos e rótulos acima de 24px
 - Gráfico deve ilustrar o conceito, não decorar o slide
 
 **Tipo B — Slide de título grande**
 
 Elementos:
-- Fundo alternado (usar `#05386B`, `#379683` ou `#5CDB95` — variar ao longo do carrossel)
-- Título grande em destaque (60-72px)
+- Fundo de impacto, texto no fundo principal
+- Título grande em destaque (60-72px); para variar ao longo do carrossel, alterne a cor da barra ou da palavra em destaque entre os acentos, sempre com contraste mínimo de 3:1 para título grande
 - Uma frase de suporte (32-36px)
 
 Regras:
@@ -133,7 +159,7 @@ Elementos:
 
 Regras:
 - Fonte dos bullets: mínimo 32px
-- Marcador visual: ponto colorido (`#5CDB95`) no lugar de hífen
+- Marcador visual: ponto no acento principal no lugar de hífen
 
 ---
 
@@ -143,19 +169,19 @@ Objetivo: converter quem chegou até aqui.
 
 Este slide tem layout fixo — copiar do template `carousel_studio/data/capas-template.html` (último slide) e substituir apenas o texto do CTA.
 
-Elementos fixos (não alterar):
-- **Assinatura** — foto circular de `data/Photos/perfil.jpg` com moldura `#FFD166`, nome "Romualdo Barbosa" e tagline "Dados e Tecnologia", posicionada no rodapé esquerdo (`bottom: 72px; left: 80px`)
-- **Fundo** — sempre `#0A122A`
+Elementos fixos (vêm da identidade, não alterar):
+- **Assinatura** — foto circular de `foto` com moldura no acento principal, `nome` e `tagline`, posicionada no rodapé esquerdo (`bottom: 72px; left: 80px`). Se `foto` estiver vazia, a assinatura sai sem o círculo: só nome e tagline, na mesma posição
+- **Fundo** — sempre o fundo de impacto
+- **Linha de seguir** — o texto de `linha_de_seguir` (32px, fundo principal, opacidade 0.6)
 
 Elementos variáveis por carrossel:
-- **Texto principal** — frase que entrega o valor e convida a salvar ou comentar (44px, `#FFF7E6`)
-- **Chamada de ação** — ação direta em dourado: salva, comenta, segue (36px, `#FFD166`)
-- **Linha de seguir** — "Me segue para mais conteudo sobre dados e tecnologia." (32px, opacidade 0.6)
+- **Texto principal** — frase que entrega o valor e convida a salvar ou comentar (44px, fundo principal)
+- **Chamada de ação** — ação direta no acento principal: salva, comenta, segue (36px)
 
 Regras:
 - CTA direto: uma ação por linha
 - Sem texto decorativo
-- Assinatura nunca alterada — é identidade fixa do Romualdo
+- Assinatura nunca alterada fora da identidade: para mudar nome, tagline, foto ou linha de seguir, edite `data/identidade.md`
 
 ---
 
@@ -165,60 +191,64 @@ A skill gera os gráficos como SVG embutido no HTML. Nenhuma biblioteca extra ne
 
 ### Tipos de gráfico disponíveis
 
+Nos SVGs, a cor entra por `style="fill: var(--cor-...)"` (ou `stroke`), não pelo atributo `fill="..."`: o Chromium não resolve `var()` em atributo de apresentação de SVG. As variáveis vêm do bloco `:root` do HTML.
+
 **Barras horizontais** — comparação entre categorias
 ```html
 <svg width="600" height="300" viewBox="0 0 600 300">
   <!-- barra + rótulo + valor -->
-  <rect x="120" y="20" width="360" height="44" fill="#379683" rx="4"/>
-  <text x="110" y="48" text-anchor="end" font-size="28" fill="#05386B">Categoria A</text>
-  <text x="492" y="48" font-size="28" fill="#05386B">72%</text>
+  <rect x="120" y="20" width="360" height="44" rx="4" style="fill: var(--cor-acento-secundario)"/>
+  <text x="110" y="48" text-anchor="end" font-size="28" style="fill: var(--cor-fundo-impacto)">Categoria A</text>
+  <text x="492" y="48" font-size="28" style="fill: var(--cor-fundo-impacto)">72%</text>
 </svg>
 ```
 
 **Barras verticais** — série temporal ou ranking
 ```html
 <svg width="600" height="320" viewBox="0 0 600 320">
-  <rect x="60"  y="80"  width="80" height="200" fill="#05386B" rx="4"/>
-  <rect x="180" y="40"  width="80" height="240" fill="#379683" rx="4"/>
-  <rect x="300" y="120" width="80" height="160" fill="#5CDB95" rx="4"/>
+  <rect x="60"  y="80"  width="80" height="200" rx="4" style="fill: var(--cor-fundo-impacto)"/>
+  <rect x="180" y="40"  width="80" height="240" rx="4" style="fill: var(--cor-acento-principal)"/>
+  <rect x="300" y="120" width="80" height="160" rx="4" style="fill: var(--cor-acento-secundario)"/>
 </svg>
 ```
 
 **Linha do tempo** — sequência de etapas
 ```html
 <svg width="700" height="120" viewBox="0 0 700 120">
-  <line x1="60" y1="60" x2="640" y2="60" stroke="#8EE4AF" stroke-width="4"/>
-  <circle cx="60"  cy="60" r="20" fill="#05386B"/>
-  <circle cx="230" cy="60" r="20" fill="#379683"/>
-  <circle cx="400" cy="60" r="20" fill="#5CDB95"/>
-  <circle cx="570" cy="60" r="20" fill="#05386B"/>
+  <line x1="60" y1="60" x2="640" y2="60" stroke-width="4" style="stroke: var(--cor-acento-terciario)"/>
+  <circle cx="60"  cy="60" r="20" style="fill: var(--cor-fundo-impacto)"/>
+  <circle cx="230" cy="60" r="20" style="fill: var(--cor-acento-secundario)"/>
+  <circle cx="400" cy="60" r="20" style="fill: var(--cor-acento-principal)"/>
+  <circle cx="570" cy="60" r="20" style="fill: var(--cor-fundo-impacto)"/>
 </svg>
 ```
 
 **Regras gerais dos SVGs:**
 - Sempre usar `viewBox` para escalar corretamente
 - Fontes no SVG: mínimo `font-size="28"`
-- Cores somente da paleta oficial
+- Cores somente da paleta da identidade
 - Sem gradientes, sombras ou efeitos — visual limpo
 
 ---
 
-## Identidade visual
+## Paleta por papel
 
-| Papel | Nome | Hex | Uso |
+As cores vêm da identidade (ver "Identidade visual: de onde vem"). A skill cita cada cor pelo papel; o hex está só em `data/identidade.md`.
+
+| Papel | Campo | Variável CSS | Uso |
 |---|---|---|---|
-| Fundo de impacto | Midnight Navy | `#0A122A` | Capa, slides Tipo B, CTA |
-| Fundo principal | Cream | `#FFF7E6` | Slides claros, Tipo A, resumo, sub-capa |
-| Acento principal | Golden Yellow | `#FFD166` | Barras, marcadores, números, hook da capa |
-| Acento secundário | Teal | `#177E89` | Elementos secundários de gráficos |
-| Acento terciário | Terracota | `#E07A5F` | Terceiro elemento em gráficos, variação pontual |
+| Fundo de impacto | `cor_fundo_impacto` | `--cor-fundo-impacto` | Capa, slides Tipo B, CTA |
+| Fundo principal | `cor_fundo_principal` | `--cor-fundo-principal` | Slides claros, Tipo A, resumo, sub-capa |
+| Acento principal | `cor_acento_principal` | `--cor-acento-principal` | Barras, marcadores, números, hook da capa |
+| Acento secundário | `cor_acento_secundario` | `--cor-acento-secundario` | Elementos secundários de gráficos, numeração dos slides claros |
+| Acento terciário | `cor_acento_terciario` | `--cor-acento-terciario` | Terceiro elemento em gráficos, variação pontual |
 
 **Como usar:**
-- Slides de impacto (capa, Tipo B, CTA): fundo `#0A122A`, texto `#FFF7E6`, acento `#FFD166`
-- Slides claros (Tipo A, sub-capa, resumo): fundo `#FFF7E6`, texto `#0A122A`, acento `#FFD166`
-- Gráficos: `#0A122A` elemento principal, `#FFD166` destaque, `#177E89` e `#E07A5F` elementos secundários
+- Slides de impacto (capa, Tipo B, CTA): fundo de impacto, texto no fundo principal, destaque no acento principal
+- Slides claros (Tipo A, sub-capa, resumo): fundo principal, texto no fundo de impacto, acento principal só em forma (barra, marcador), não em texto, a menos que o contraste passe 4.5:1
+- Gráficos: fundo de impacto no elemento principal, acento principal no destaque, acentos secundário e terciário nos elementos secundários
 
-**Regra:** nunca use cores fora desta paleta sem autorização explícita do Romualdo.
+**Regra:** nunca use cores fora desta paleta sem autorização explícita da pessoa.
 
 ---
 
@@ -226,8 +256,8 @@ A skill gera os gráficos como SVG embutido no HTML. Nenhuma biblioteca extra ne
 
 1. **Leia o input** — tema livre ou arquivo de post
 2. **Planeje os slides** — defina quantos slides (8–12), o gancho da capa e um ponto por slide de conteúdo
-3. **Mostre o plano ao Romualdo** — liste os slides com título de cada um antes de renderizar
-4. **Aguarde aprovação** — só gere o HTML após o Romualdo confirmar o plano
+3. **Mostre o plano à pessoa** — liste os slides com título de cada um antes de renderizar
+4. **Aguarde aprovação** — só gere o HTML após a pessoa confirmar o plano
 5. **Gere o HTML** — salve em `carousel_studio/rascunhos/<slug>.html` seguindo a estrutura abaixo
 6. **Renderize o PDF**:
    ```bash
@@ -239,7 +269,7 @@ A skill gera os gráficos como SVG embutido no HTML. Nenhuma biblioteca extra ne
 
 ## Estrutura do HTML
 
-O HTML gerado pela skill deve seguir este esqueleto exato. O `render.mjs` depende da classe `.slide` para contar e paginar os slides.
+O HTML gerado pela skill deve seguir este esqueleto exato. O `render.mjs` depende da classe `.slide` para contar e paginar os slides. Troque os `{{campo}}` pelos valores da identidade (ver "Identidade visual: de onde vem").
 
 ```html
 <!DOCTYPE html>
@@ -247,13 +277,22 @@ O HTML gerado pela skill deve seguir este esqueleto exato. O `render.mjs` depend
 <head>
 <meta charset="UTF-8">
 <style>
+  /* Paleta da identidade: o único lugar com hex */
+  :root {
+    --cor-fundo-impacto: {{cor_fundo_impacto}};
+    --cor-fundo-principal: {{cor_fundo_principal}};
+    --cor-acento-principal: {{cor_acento_principal}};
+    --cor-acento-secundario: {{cor_acento_secundario}};
+    --cor-acento-terciario: {{cor_acento_terciario}};
+  }
+
   @page { size: 1080px 1080px; margin: 0; }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
     font-family: 'Barlow', Arial, sans-serif;
-    background: #FFF7E6;
+    background: var(--cor-fundo-principal);
   }
 
   /* Cada .slide vira uma página do PDF */
@@ -279,47 +318,49 @@ O HTML gerado pela skill deve seguir este esqueleto exato. O `render.mjs` depend
 </head>
 <body>
 
-  <!-- SLIDE 1: Capa -->
-  <div class="slide" style="background: #05386B;">
+  <!-- SLIDE 1: Capa (na prática, um dos templates de capas-template.html) -->
+  <div class="slide" style="background: var(--cor-fundo-impacto);">
     <div class="safe-area">
-      <h1 style="color: #5CDB95; font-size: 52px; line-height: 1.2;">
+      <h1 style="color: var(--cor-acento-principal); font-size: 52px; line-height: 1.2;">
         [título / gancho]
       </h1>
-      <p style="color: #EDF5E1; font-size: 28px; margin-top: 24px;">
+      <p style="color: var(--cor-fundo-principal); font-size: 36px; margin-top: 24px;">
         [subtítulo]
       </p>
     </div>
   </div>
 
   <!-- SLIDES DE CONTEÚDO -->
-  <div class="slide" style="background: #EDF5E1;">
+  <div class="slide" style="background: var(--cor-fundo-principal);">
     <div class="safe-area">
       <!-- Número do slide: fonte menor mas acima de 24pt (32px = ~24pt) -->
-      <span style="color: #379683; font-size: 32px; font-weight: bold;">2 / 10</span>
-      <h2 style="color: #05386B; font-size: 44px; margin-top: 16px;">
+      <span style="color: var(--cor-acento-secundario); font-size: 32px; font-weight: bold;">2 / 10</span>
+      <h2 style="color: var(--cor-fundo-impacto); font-size: 44px; margin-top: 16px;">
         [título do ponto]
       </h2>
-      <p style="color: #05386B; font-size: 32px; margin-top: 20px; line-height: 1.5;">
+      <p style="color: var(--cor-fundo-impacto); font-size: 32px; margin-top: 20px; line-height: 1.5;">
         [corpo — máximo 3 linhas]
       </p>
     </div>
   </div>
 
-  <!-- SLIDE FINAL: Encerramento -->
-  <div class="slide" style="background: #379683;">
+  <!-- SLIDE FINAL: CTA. Copie o último slide de capas-template.html
+       (texto, chamada de ação, linha de seguir e assinatura); a versão
+       abaixo é só a estrutura mínima. -->
+  <div class="slide" style="background: var(--cor-fundo-impacto);">
     <div class="safe-area">
-      <h2 style="color: #EDF5E1; font-size: 44px;">
+      <h2 style="color: var(--cor-fundo-principal); font-size: 44px;">
         [pergunta ou provocação para comentar]
       </h2>
       <!-- CTA e nome nunca dentro de 60px das bordas -->
-      <p style="color: #5CDB95; font-size: 32px; margin-top: 32px;">
+      <p style="color: var(--cor-acento-principal); font-size: 36px; margin-top: 32px;">
         Comente abaixo
       </p>
-      <p style="color: #EDF5E1; font-size: 28px; margin-top: 16px;">
-        Me siga para mais conteúdo sobre dados
+      <p style="color: var(--cor-fundo-principal); font-size: 32px; opacity: 0.6; margin-top: 16px;">
+        {{linha_de_seguir}}
       </p>
-      <p style="color: #8EE4AF; font-size: 28px; margin-top: 40px;">
-        Romualdo Barbosa
+      <p style="color: var(--cor-fundo-principal); font-size: 36px; font-weight: 700; margin-top: 40px;">
+        {{nome}}
       </p>
     </div>
   </div>
@@ -343,7 +384,8 @@ O HTML gerado pela skill deve seguir este esqueleto exato. O `render.mjs` depend
 - [ ] Nenhum texto abaixo de 32px
 - [ ] Todo conteúdo dentro da `.safe-area` (80px de padding)
 - [ ] CTAs e nome a pelo menos 60px das bordas
-- [ ] Cores somente da paleta oficial
+- [ ] Cores somente da paleta da identidade, via `var(--cor-...)`; hex só no bloco `:root`
+- [ ] Nenhum `{{` sobrando
 - [ ] Uma ideia por slide de conteúdo
 - [ ] Numeração presente em todos os slides de conteúdo
 

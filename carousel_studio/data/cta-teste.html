@@ -1,4 +1,19 @@
 <!DOCTYPE html>
+<!-- ============================================================
+     CTA DE TESTE: o último slide do carrossel isolado, para conferir
+     a assinatura. O template oficial do CTA é o último slide de
+     capas-template.html.
+     COMO PREENCHER: os valores vêm de data/identidade.md (se não
+     existir, de examples/identidade-exemplo.md, onde o formato está
+     documentado). Troque cada marcador {{campo}} pelo campo de mesmo
+     nome no frontmatter:
+       - {{cor_*}}: só no bloco :root abaixo; o resto usa var(--cor-*).
+       - {{nome}}, {{tagline}} e {{linha_de_seguir}}: texto.
+       - {{foto}}: caminho relativo à raiz do repo; o src usa "../../"
+         porque este HTML fica em carousel_studio/data/. Se foto for
+         vazia, apague o bloco "foto da assinatura" inteiro.
+     No HTML final não pode sobrar nenhum marcador com chaves duplas.
+     ============================================================ -->
 <html>
 <head>
 <meta charset="UTF-8">
@@ -6,6 +21,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
+  :root {
+    --cor-fundo-impacto: {{cor_fundo_impacto}};
+    --cor-fundo-principal: {{cor_fundo_principal}};
+    --cor-acento-principal: {{cor_acento_principal}};
+    --cor-acento-secundario: {{cor_acento_secundario}};
+    --cor-acento-terciario: {{cor_acento_terciario}};
+  }
   @page { size: 1080px 1080px; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Barlow', sans-serif; }
@@ -22,7 +44,7 @@
 </head>
 <body>
 
-<div class="slide" style="background:#0A122A;">
+<div class="slide" style="background:var(--cor-fundo-impacto);">
 
   <!-- conteudo principal centralizado -->
   <div style="
@@ -34,19 +56,19 @@
     flex-direction: column;
     justify-content: center;
   ">
-    <div style="width: 64px; height: 5px; background: #FFD166; margin-bottom: 32px;"></div>
-    <p style="color:#FFF7E6; font-size:44px; font-weight:700; line-height:1.45; margin-bottom:40px; max-width:780px;">
+    <div style="width: 64px; height: 5px; background: var(--cor-acento-principal); margin-bottom: 32px;"></div>
+    <p style="color:var(--cor-fundo-principal); font-size:44px; font-weight:700; line-height:1.45; margin-bottom:40px; max-width:780px;">
       Agora que voce conhece a ordem real, da para depurar erros de query com muito mais precisao.
     </p>
-    <p style="color:#FFD166; font-size:36px; font-weight:700; line-height:1.5; margin-bottom:16px;">
+    <p style="color:var(--cor-acento-principal); font-size:36px; font-weight:700; line-height:1.5; margin-bottom:16px;">
       Salva este slide para consultar quando precisar.
     </p>
-    <p style="color:#FFF7E6; font-size:32px; opacity:0.6; line-height:1.5;">
-      Me segue para mais conteudo sobre dados e SQL.
+    <p style="color:var(--cor-fundo-principal); font-size:32px; opacity:0.6; line-height:1.5;">
+      {{linha_de_seguir}}
     </p>
   </div>
 
-  <!-- assinatura: foto circular + nome -->
+  <!-- assinatura: foto circular (opcional) + nome + tagline -->
   <div style="
     position: absolute;
     bottom: 72px; left: 80px;
@@ -54,22 +76,22 @@
     align-items: center;
     gap: 28px;
   ">
-    <!-- moldura circular -->
+    <!-- foto da assinatura: apague este bloco se foto for vazia -->
     <div style="
       width: 120px;
       height: 120px;
       border-radius: 50%;
-      border: 3px solid #FFD166;
+      border: 3px solid var(--cor-acento-principal);
       overflow: hidden;
       flex-shrink: 0;
     ">
-      <img src="../../data/Photos/perfil.jpg"
+      <img src="../../{{foto}}"
            style="width:100%; height:100%; object-fit:cover; object-position:top center;" />
     </div>
     <!-- nome -->
     <div>
-      <p style="color:#FFF7E6; font-size:36px; font-weight:700; line-height:1.2;">Romualdo Barbosa</p>
-      <p style="color:#FFF7E6; font-size:28px; opacity:0.5; margin-top:6px;">Dados e Tecnologia</p>
+      <p style="color:var(--cor-fundo-principal); font-size:36px; font-weight:700; line-height:1.2;">{{nome}}</p>
+      <p style="color:var(--cor-fundo-principal); font-size:28px; opacity:0.5; margin-top:6px;">{{tagline}}</p>
     </div>
   </div>
 
