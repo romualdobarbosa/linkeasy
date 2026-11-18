@@ -5,7 +5,9 @@
   "description": "AI-orchestrated LinkedIn content pipeline: renders carousels (PDF) and infographics (PNG) with Playwright",
   "scripts": {
     "render:carousel": "node carousel_studio/render.mjs",
-    "render:infographic": "node infographic/render.mjs"
+    "render:infographic": "node infographic/render.mjs",
+    "test": "npm run test:render",
+    "test:render": "node tests/render-smoke.mjs"
   },
   "keywords": [
     "linkedin",

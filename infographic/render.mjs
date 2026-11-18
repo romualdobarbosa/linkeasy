@@ -1,6 +1,6 @@
 import { renderToString } from '@antv/infographic/ssr';
 import { chromium } from 'playwright';
-import { writeFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 
 const args = process.argv.slice(2);
@@ -15,12 +15,19 @@ const svgPath = flag('--svg') ?? null;
 const width = parseInt(flag('--width') ?? '1200');
 const height = parseInt(flag('--height') ?? '627');
 
-const chunks = [];
-for await (const chunk of process.stdin) chunks.push(chunk);
-const syntax = Buffer.concat(chunks).toString('utf-8').trim();
+// Sintaxe via --input <arquivo> ou, se ausente, via stdin.
+const inputPath = flag('--input');
+let syntax;
+if (inputPath) {
+  syntax = readFileSync(inputPath, 'utf-8').trim();
+} else {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  syntax = Buffer.concat(chunks).toString('utf-8').trim();
+}
 
 if (!syntax) {
-  process.stderr.write('Error: nenhuma sintaxe recebida via stdin\n');
+  process.stderr.write('Error: nenhuma sintaxe recebida (use --input ou stdin)\n');
   process.exit(1);
 }
 
