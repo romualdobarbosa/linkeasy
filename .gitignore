@@ -26,9 +26,8 @@ studio/for_review/*
 carousel_studio/rascunhos/*
 !carousel_studio/rascunhos/.gitkeep
 
-posting/published/*
-!posting/published/.gitkeep
 
+posting/published/
 posting/queue/*
 !posting/queue/.gitkeep
 
