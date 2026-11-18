@@ -1,11 +1,11 @@
 ---
 name: criar-voz
-description: Onboarding de voz. Cria a skill de voz de uma pessoa (voz-<slug>) a partir de textos que ela escreveu e de uma entrevista curta, testa em rodadas e ativa em data/voz/ativa. Use quando alguém for configurar o linkeasy, quando data/voz/ativa não existir, ou para refazer ou ajustar uma voz.
+description: Onboarding de voz. Cria a skill de voz de uma pessoa (voz-<slug>) a partir de textos que ela escreveu e de uma entrevista curta, testa em rodadas, grava a identidade visual em data/identidade.md e ativa em data/voz/ativa. Use quando alguém for configurar o linkeasy, quando data/voz/ativa não existir, ou para refazer ou ajustar uma voz.
 ---
 
 # Criar voz
 
-Gera `.claude/skills/voz-<slug>/SKILL.md`, a skill que reescreve o rascunho do redator na voz da pessoa antes do visual (fluxo no `CLAUDE.md`). Tudo que for da pessoa fica em `data/voz/<slug>/`. A skill gerada e `data/voz/` são gitignored; só a `voz-exemplo` é versionada.
+Gera `.claude/skills/voz-<slug>/SKILL.md`, a skill que reescreve o rascunho do redator na voz da pessoa antes do visual (fluxo no `CLAUDE.md`), e `data/identidade.md`, a identidade visual que o `/carrossel` e o `/infografista` usam. Tudo que for da pessoa fica em `data/voz/<slug>/`. A skill gerada, `data/voz/` e `data/identidade.md` são gitignored; só a `voz-exemplo` e a `examples/identidade-exemplo.md` são versionadas.
 
 ```
 data/voz/
@@ -88,10 +88,24 @@ Até 3 rodadas, ou até a pessoa aprovar. Em cada rodada NN (01, 02, 03):
 
 Pronto quando: a pessoa aprovou uma rodada, ou a rodada 03 terminou (nesse caso diga o que ficou pendente).
 
-## 5. Ativar
+## 5. Identidade visual
+
+Grava `data/identidade.md` no formato documentado em `examples/identidade-exemplo.md` (frontmatter `chave: valor`, uma por linha). O `nome` é o mesmo da etapa 1.
+
+1. Se `data/identidade.md` já existir, mostre os campos e pergunte se ajusta algum. Se ela não quiser ajustar nada, a etapa está pronta.
+2. Tagline: uma linha que aparece abaixo do nome na assinatura (área, foco). Proponha uma a partir das amostras e da entrevista e confirme.
+3. Foto (opcional): caminho de uma foto de perfil. Sugira copiar para `data/Photos/`, que é gitignored, e grave o caminho relativo à raiz do repo (ex. `data/Photos/perfil.jpg`). Confira que o arquivo existe. Sem foto, grave `foto: ""` e diga que a assinatura sai só com nome e tagline.
+4. Linha de seguir: a frase do último slide do carrossel convidando a seguir. Proponha uma na voz da pessoa, sem hashtag nem emoji, e confirme.
+5. Paleta: ofereça partir da paleta de `examples/identidade-exemplo.md` ou informar 5 cores em hex, uma por papel (fundo de impacto, fundo principal, acento principal, acento secundário, acento terciário; o papel de cada uma está no exemplo). Nomes das cores são opcionais.
+6. Calcule o contraste WCAG (luminância relativa) e mostre os números: fundo principal sobre fundo de impacto, acento principal sobre fundo de impacto, acentos secundário e terciário sobre fundo principal. Se fundo principal sobre fundo de impacto ficar abaixo de 4,5:1, avise que o texto dos slides fica ilegível e peça outra cor. Nos outros pares, abaixo de 4,5:1, avise que aquela cor serve para forma e texto grande, não para texto corrido, e pergunte se mantém.
+7. Grave `data/identidade.md`: frontmatter com `nome`, `tagline`, `foto`, `linha_de_seguir`, as cinco `cor_*` e os `nome_*` que houver; no corpo, uma linha apontando para `examples/identidade-exemplo.md` e a tabela de contraste do item 6.
+
+Pronto quando: `data/identidade.md` existe com todos os campos (foto pode ser `""`), o par fundo principal e fundo de impacto passa 4,5:1 e a pessoa viu os números de contraste.
+
+## 6. Ativar
 
 1. Se `data/voz/ativa` já existir com outro nome, mostre qual é e pergunte se troca.
 2. Grave `voz-<slug>` em `data/voz/ativa`, numa linha só. O nome pode ser de uma skill fora do repo (por exemplo em `~/.claude/skills/`) se a pessoa pedir.
-3. Rode `git status --short`. Se aparecer qualquer caminho de `data/voz/` ou de `.claude/skills/voz-<slug>/`, pare e avise: o `.gitignore` não está cobrindo dados pessoais e nada deve ser commitado até corrigir.
+3. Rode `git status --short`. Se aparecer qualquer caminho de `data/voz/`, de `.claude/skills/voz-<slug>/`, `data/identidade.md` ou `data/Photos/`, pare e avise: o `.gitignore` não está cobrindo dados pessoais e nada deve ser commitado até corrigir.
 
-Pronto quando: `data/voz/ativa` tem o nome da skill e o `git status --short` não mostra nada da voz.
+Pronto quando: `data/voz/ativa` tem o nome da skill e o `git status --short` não mostra nada da voz nem da identidade.

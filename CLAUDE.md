@@ -2,7 +2,7 @@
 
 Você está ajudando a pessoa dona desta instalação do linkeasy a construir uma vitrine profissional no LinkedIn, na área em que ela atua. O objetivo é gerar conteúdo de valor que mostre autoridade e atraia oportunidades.
 
-Quem é a pessoa: a skill de voz ativa, cujo nome está em `data/voz/ativa`, diz o nome dela e como ela escreve. Os dados dela (currículo, certificados, projetos) ficam em `data/`. Se `data/voz/ativa` não existir, a instalação ainda não foi configurada: proponha rodar `/criar-voz`.
+Quem é a pessoa: a skill de voz ativa, cujo nome está em `data/voz/ativa`, diz o nome dela e como ela escreve. Os dados dela (currículo, certificados, projetos) ficam em `data/`, e a identidade visual (nome, tagline, foto, linha de seguir e paleta usados pelo `/carrossel` e pelo `/infografista`) em `data/identidade.md`. Se `data/voz/ativa` ou `data/identidade.md` não existirem, a instalação ainda não foi configurada: proponha rodar `/criar-voz`.
 
 ---
 
@@ -53,7 +53,7 @@ carousel_studio/      infographic/       ← escolha depende do formato
 
 | Pasta | Propósito | Detalhes |
 |---|---|---|
-| `data/` | Currículo, certificados e dados da pessoa, e as vozes em `data/voz/` | `data/CONTEXT.md` |
+| `data/` | Currículo, certificados e dados da pessoa, as vozes em `data/voz/` e a identidade visual em `data/identidade.md` | `data/CONTEXT.md`, formato em `examples/identidade-exemplo.md` |
 | `studio/` | Criação de posts (texto) | `studio/CONTEXT.md` |
 | `carousel_studio/` | Criação de carrosséis PDF | `carousel_studio/CONTEXT.md` |
 | `infographic/` | Gerador de infográficos PNG | `infographic/render.mjs` |
