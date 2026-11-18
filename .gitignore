@@ -15,6 +15,7 @@ data/resumo_sql.md
 data/storytelling_with_data.md
 data/arch/
 data/linkedin-*.md
+data/identidade.md
 
 # Conteúdo gerado / posts pessoais (a estrutura das pastas é preservada via .gitkeep)
 history/*
