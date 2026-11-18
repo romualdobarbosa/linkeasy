@@ -5,6 +5,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import requests
 from dotenv import load_dotenv
@@ -14,7 +15,6 @@ load_dotenv()
 TOKEN_FILE = ".token.json"
 QUEUE_DIR = Path("posting/queue")
 PUBLISHED_DIR = Path("posting/published")
-PERSON_ID = os.getenv("LINKEDIN_PERSON_ID")
 
 API_BASE = "https://api.linkedin.com/rest"
 # Versão da API (header LinkedIn-Version, formato AAAAMM). Última verificação: 2025-06.
@@ -22,6 +22,10 @@ API_BASE = "https://api.linkedin.com/rest"
 # as chamadas e é preciso subir esta data. Não deu para conferir sem token: a API responde
 # 401 EMPTY_ACCESS_TOKEN antes de validar a versão.
 LINKEDIN_VERSION = "202506"
+
+# Horários do frontmatter são locais deste fuso (sobrescrevível com LINKEASY_TZ).
+DEFAULT_TZ = "America/Sao_Paulo"
+DATE_FORMAT = "%Y-%m-%d %H:%M"
 
 TIMEOUT = (10, 60)  # (conexão, leitura) em segundos
 MAX_ATTEMPTS = 3
@@ -126,12 +130,37 @@ def parse_post(file: Path):
     return frontmatter, body
 
 
-def is_due(scheduled_at: str) -> bool:
+def get_tz() -> ZoneInfo:
+    name = os.getenv("LINKEASY_TZ") or DEFAULT_TZ
     try:
-        scheduled = datetime.strptime(scheduled_at, "%Y-%m-%d %H:%M")
-        return datetime.now() >= scheduled
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise PostError(f"fuso inválido em LINKEASY_TZ: {name!r}") from None
+
+
+def format_local(moment: datetime) -> str:
+    return moment.astimezone(get_tz()).strftime(DATE_FORMAT)
+
+
+def is_due(frontmatter: dict, now: datetime, source: str) -> bool:
+    """True se scheduled_at já passou. `now` precisa ter fuso. Erro se faltar ou for inválido."""
+    scheduled_at = frontmatter.get("scheduled_at", "")
+    if not scheduled_at:
+        raise PostError(f"{source}: frontmatter sem scheduled_at")
+    try:
+        scheduled = datetime.strptime(scheduled_at, DATE_FORMAT)
     except ValueError:
-        return False
+        raise PostError(
+            f"{source}: scheduled_at inválido ({scheduled_at!r}), use o formato AAAA-MM-DD HH:MM"
+        ) from None
+    return now >= scheduled.replace(tzinfo=get_tz())
+
+
+def get_person_id() -> str:
+    person_id = os.getenv("LINKEDIN_PERSON_ID", "").strip()
+    if not person_id:
+        raise PostError("LINKEDIN_PERSON_ID não definido; preencha no .env (veja .env.example)")
+    return person_id
 
 
 def upload_image(token: str, image_path: Path) -> str:
@@ -140,7 +169,7 @@ def upload_image(token: str, image_path: Path) -> str:
         f"{API_BASE}/images?action=initializeUpload",
         "initializeUpload",
         headers=api_headers(token),
-        json={"initializeUploadRequest": {"owner": f"urn:li:person:{PERSON_ID}"}},
+        json={"initializeUploadRequest": {"owner": f"urn:li:person:{get_person_id()}"}},
     )
     data = init_response.json()["value"]
     upload_url = data["uploadUrl"]
@@ -173,7 +202,7 @@ def find_images(post_file: Path) -> list[Path]:
 def publish(token: str, text: str, image_paths: list[Path] | None = None) -> str:
     """Publica o post e devolve o ID (header x-restli-id da resposta)."""
     body = {
-        "author": f"urn:li:person:{PERSON_ID}",
+        "author": f"urn:li:person:{get_person_id()}",
         "commentary": text,
         "visibility": "PUBLIC",
         "distribution": {
@@ -236,9 +265,9 @@ def main():
         if frontmatter.get("status") == "posted":
             continue
 
-        scheduled_at = frontmatter.get("scheduled_at", "")
-        if not is_due(scheduled_at):
-            print(f"Agendado para {scheduled_at} — ainda nao e a hora.")
+        if not is_due(frontmatter, datetime.now(get_tz()), post_file.name):
+            when = frontmatter["scheduled_at"]
+            print(f"{post_file.name}: agendado para {when}, ainda não é a hora.")
             continue
 
         image_paths = find_images(post_file)

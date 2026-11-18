@@ -1,5 +1,8 @@
 """Testes do post.py. Toda chamada HTTP é mockada com `responses`; nada vai para a rede."""
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import pytest
 import responses
 
@@ -19,7 +22,8 @@ def sem_espera(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def pessoa_ficticia(monkeypatch):
-    monkeypatch.setattr(post, "PERSON_ID", "pessoa-teste")
+    monkeypatch.setenv("LINKEDIN_PERSON_ID", "pessoa-teste")
+    monkeypatch.delenv("LINKEASY_TZ", raising=False)
 
 
 def registra_post_ok(rsps, post_id="urn:li:share:111"):
@@ -146,6 +150,44 @@ def test_queda_de_leitura_no_upload_retenta(tmp_path):
     responses.add(responses.POST, INIT_URL, body=post.requests.ReadTimeout("lento"))
     registra_upload(responses)
     assert post.upload_image("tok", img) == "urn:li:image:0"
+
+
+# --- agendamento e configuração ----------------------------------------------------------
+
+SP = ZoneInfo("America/Sao_Paulo")
+
+
+def test_is_due_vencido_e_futuro():
+    fm = {"scheduled_at": "2026-05-15 08:00"}
+    assert post.is_due(fm, datetime(2026, 5, 15, 8, 0, tzinfo=SP), "a.md")
+    assert not post.is_due(fm, datetime(2026, 5, 15, 7, 59, tzinfo=SP), "a.md")
+
+
+def test_is_due_compara_no_fuso_configurado(monkeypatch):
+    fm = {"scheduled_at": "2026-05-15 08:00"}
+    # 10:30 UTC = 07:30 em São Paulo (UTC-3): ainda não venceu
+    agora = datetime(2026, 5, 15, 10, 30, tzinfo=ZoneInfo("UTC"))
+    assert not post.is_due(fm, agora, "a.md")
+    monkeypatch.setenv("LINKEASY_TZ", "UTC")
+    assert post.is_due(fm, agora, "a.md")
+
+
+@pytest.mark.parametrize("fm", [{}, {"scheduled_at": ""}, {"scheduled_at": "15/05/2026 08:00"}])
+def test_is_due_invalido_ou_ausente_nomeia_arquivo(fm):
+    with pytest.raises(post.PostError, match="meu-post.md: .*scheduled_at"):
+        post.is_due(fm, datetime.now(SP), "meu-post.md")
+
+
+def test_fuso_invalido(monkeypatch):
+    monkeypatch.setenv("LINKEASY_TZ", "Marte/Olympus")
+    with pytest.raises(post.PostError, match="LINKEASY_TZ"):
+        post.get_tz()
+
+
+def test_person_id_ausente(monkeypatch):
+    monkeypatch.delenv("LINKEDIN_PERSON_ID")
+    with pytest.raises(post.PostError, match="LINKEDIN_PERSON_ID"):
+        post.publish("tok", "texto")
 
 
 # --- imagens ------------------------------------------------------------------------------
