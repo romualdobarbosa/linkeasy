@@ -13,11 +13,12 @@ data/dennou-context.md
 data/contexto-olist.md
 data/resumo_sql.md
 data/storytelling_with_data.md
+data/arch/
+data/linkedin-*.md
 
 # Conteúdo gerado / posts pessoais (a estrutura das pastas é preservada via .gitkeep)
-history/*.md
+history/*
 !history/CONTEXT.md
-history/olist-churn-recompra/
 
 studio/for_review/*
 !studio/for_review/.gitkeep
@@ -30,3 +31,9 @@ posting/published/*
 
 posting/queue/*
 !posting/queue/.gitkeep
+
+# Ferramentas
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
