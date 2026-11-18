@@ -36,8 +36,9 @@ Pra mim, é a forma mais honesta de mostrar o que o linkeasy faz. Deixo ele se e
 
 | Métrica | Valor | De onde vem |
 |---|---|---|
-| Posts publicados no LinkedIn pela ferramenta | 3 | Arquivos com `status: published` em `history/`. A pasta fica fora do repositório porque é conteúdo pessoal. Não conta um post de teste. |
+| Posts publicados no LinkedIn pela ferramenta | 4 | Arquivos com `status: published` em `history/`. A pasta fica fora do repositório porque é conteúdo pessoal. Não conta um post de teste. |
 | Carrosséis renderizados | 4 | PDFs gerados localmente em `carousel_studio/rascunhos/`. Um deles é a demonstração deste README. |
+| Tempo do tema ao post pronto | 2min36s (uma medição) | Cronometrado em 18/11/2026, do tema enviado ao post com texto e infográfico aprovados na fila, contando o tempo das minhas aprovações. É uma medição só, então vale como ordem de grandeza. |
 | Testes automatizados | 78 | `make test` (pytest), roda no CI a cada push |
 | Cobertura de `post.py` e `auth.py` | 99% (3 de 412 linhas sem cobertura) | `make test` (pytest-cov), roda no CI a cada push |
 
@@ -109,7 +110,7 @@ O formato do frontmatter e as regras da fila estão em `posting/CONTEXT.md`.
 - O access token do LinkedIn expira. O prazo vem no `expires_in` da resposta (em torno de 60 dias). O `post.py` recusa token vencido, avisa quando faltam menos de 7 dias, e aí é rodar `uv run auth.py` de novo. Não há refresh token.
 - Roda local e não tem agendador. O `scheduled_at` diz a partir de quando o post pode sair, mas alguém precisa executar o `post.py`, à mão ou por um cron configurado na própria máquina.
 - Sobra uma janela pequena para publicação duplicada, entre o 2xx da API e a gravação do `post_id` no arquivo. Se o processo morrer exatamente ali, o post não tem ID gravado e sai de novo na próxima execução.
-- Os testes do `post.py` e do `auth.py` usam a API mockada (`responses`). Os 3 posts de "Em números" saíram por uma versão anterior do `post.py`. O que entrou depois (gravação do `post_id`, retry, multiImage, checagem do token) eu testei só com a API mockada, ainda não contra a API real.
+- Os testes do `post.py` e do `auth.py` usam a API mockada (`responses`). Contra a API real, conferi em 18/11/2026 a publicação de um post com uma imagem, a gravação do `post_id` e a passagem para `history/`. O retry e o multiImage até agora só rodaram nos testes. Três dos 4 posts de "Em números" saíram por uma versão anterior do `post.py`, sem `post_id`.
 
 ## Como rodar
 
