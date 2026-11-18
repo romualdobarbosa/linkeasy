@@ -1,6 +1,6 @@
 # Posting
 
-Gerencia a fila de publicação dos posts do LinkedIn do Romualdo.
+Gerencia a fila de publicação dos posts do LinkedIn da pessoa que usa o linkeasy.
 
 ## Fluxo
 
@@ -39,7 +39,7 @@ padroes_depois: 1                # gravado pelo padroes.py no studio (opcional)
 ---
 ```
 
-Na fila eu preencho só `scheduled_at` e `status: queue`. Os campos `status: published`, `published_at` e `post_id` quem grava é o `post.py`, logo depois que a API confirma a publicação. Não edite esses três à mão. `padroes_antes` e `padroes_depois` vêm da medição do `/humanizer` no studio (ver `studio/CONTEXT.md`) e também não se editam à mão.
+Na fila só se preenchem `scheduled_at` e `status: queue`. Os campos `status: published`, `published_at` e `post_id` quem grava é o `post.py`, logo depois que a API confirma a publicação. Não edite esses três à mão. `padroes_antes` e `padroes_depois` vêm da medição da voz ativa no studio (ver `studio/CONTEXT.md`) e também não se editam à mão.
 
 O horário é local de America/Sao_Paulo. Para usar outro fuso, defina `LINKEASY_TZ` no `.env` (por exemplo `LINKEASY_TZ=Europe/Lisbon`).
 
@@ -55,7 +55,7 @@ O horário é local de America/Sao_Paulo. Para usar outro fuso, defina `LINKEASY
 - Pasta de imagens com o mesmo nome do arquivo sem extensão (ex: `meu-post/`).
 - Só entram arquivos png, jpg e jpeg, em ordem de nome. Os outros geram aviso e ficam de fora.
 - Uma imagem vai como imagem única. De 2 a 20 vão como multiImage. Mais de 20 dá erro.
-- Carrossel em PDF não passa pelo `post.py`. Esse eu publico à mão no LinkedIn.
+- Carrossel em PDF não passa pelo `post.py`. Esse é publicado à mão no LinkedIn.
 
 ## Regras
 

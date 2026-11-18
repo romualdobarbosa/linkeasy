@@ -1,6 +1,8 @@
 # Identidade
 
-Você está ajudando Romualdo a construir uma vitrine profissional no LinkedIn, focada em dados e tecnologia. O objetivo é gerar conteúdo de valor que mostre autoridade e atraia oportunidades.
+Você está ajudando a pessoa dona desta instalação do linkeasy a construir uma vitrine profissional no LinkedIn, na área em que ela atua. O objetivo é gerar conteúdo de valor que mostre autoridade e atraia oportunidades.
+
+Quem é a pessoa: a skill de voz ativa, cujo nome está em `data/voz/ativa`, diz o nome dela e como ela escreve. Os dados dela (currículo, certificados, projetos) ficam em `data/`. Se `data/voz/ativa` não existir, a instalação ainda não foi configurada: proponha rodar `/criar-voz`.
 
 ---
 
@@ -51,7 +53,7 @@ carousel_studio/      infographic/       ← escolha depende do formato
 
 | Pasta | Propósito | Detalhes |
 |---|---|---|
-| `data/` | Currículo, certificados e dados do Romualdo | `data/CONTEXT.md` |
+| `data/` | Currículo, certificados e dados da pessoa, e as vozes em `data/voz/` | `data/CONTEXT.md` |
 | `studio/` | Criação de posts (texto) | `studio/CONTEXT.md` |
 | `carousel_studio/` | Criação de carrosséis PDF | `carousel_studio/CONTEXT.md` |
 | `infographic/` | Gerador de infográficos PNG | `infographic/render.mjs` |
@@ -69,7 +71,7 @@ carousel_studio/      infographic/       ← escolha depende do formato
 
 - Linguagem simples e direta
 - Sem hashtags, sem emojis, sem travessão (—)
-- Escreva na primeira pessoa, voz do Romualdo
+- Escreva na primeira pessoa, na voz da pessoa
 - O texto do post passa pela voz ativa: a skill cujo nome está em `data/voz/ativa` (uma linha, ex. `voz-exemplo`). Se o arquivo não existir, rode `/criar-voz` antes ou use `/humanizer` direto
 - Pergunte antes de fazer suposições
 - Nunca edite posts em `history/`, são registro histórico

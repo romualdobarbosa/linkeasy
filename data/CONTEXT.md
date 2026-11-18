@@ -4,7 +4,7 @@ Esta pasta contém arquivos de entrada para análise.
 
 ## Tipos de arquivo esperados
 
-- **Currículo (PDF)** — experiências, habilidades, formação e projetos do Romualdo
+- **Currículo (PDF)** — experiências, habilidades, formação e projetos da pessoa
 - **Certificados de cursos (PDF)** — cursos concluídos, plataforma, carga horária
 - **Outros dados relevantes** — arquivos avulsos com contexto útil para os posts
 

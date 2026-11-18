@@ -1,13 +1,13 @@
 # Carousel Studio
 
-Ambiente de criação de carrosséis para o LinkedIn do Romualdo.
+Ambiente de criação de carrosséis para o LinkedIn da pessoa que usa o linkeasy.
 
 ## Como funciona
 
-1. Romualdo informa o tema ou prompt do carrossel
+1. A pessoa informa o tema ou prompt do carrossel
 2. A skill `/carrossel` é acionada para gerar os slides
 3. O carrossel é exportado como PDF e salvo em `carousel_studio/rascunhos/`
-4. Após aprovação, o post de texto vai para `../posting/queue/`. O `post.py` não publica PDF, então o carrossel eu publico à mão no LinkedIn
+4. Após aprovação, o post de texto vai para `../posting/queue/`. O `post.py` não publica PDF, então o carrossel é publicado à mão no LinkedIn
 
 ## Estrutura de pastas
 

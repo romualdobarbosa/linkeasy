@@ -4,7 +4,7 @@
 .token.json
 node_modules/
 
-# Dados pessoais do Romualdo (mantidos localmente, fora do controle de versão)
+# Dados pessoais de quem usa o linkeasy (mantidos localmente, fora do controle de versão)
 data/*.pdf
 data/Pasted_image.png
 data/Photos/

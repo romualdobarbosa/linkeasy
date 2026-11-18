@@ -1,6 +1,6 @@
 # History
 
-Registro histórico de todos os posts publicados no LinkedIn do Romualdo.
+Registro histórico de todos os posts publicados no LinkedIn da pessoa que usa o linkeasy.
 
 ## Estrutura de pastas
 

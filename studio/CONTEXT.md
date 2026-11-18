@@ -1,10 +1,10 @@
 # Studio
 
-Este é o ambiente de criação de posts para o LinkedIn do Romualdo.
+Este é o ambiente de criação de posts para o LinkedIn da pessoa que usa o linkeasy.
 
 ## Como funciona
 
-1. Romualdo informa o tema ou prompt do post
+1. A pessoa informa o tema ou prompt do post
 2. O redator é acionado para redigir o conteúdo
 3. O post é salvo em `for_review/` aguardando aprovação
 4. Após aprovação, o post passa pela voz ativa (com a medição descrita abaixo) e segue para `../carousel_studio/` (se carrossel) ou `../infographic/` (se infográfico), depois vai para `../posting/queue/`
