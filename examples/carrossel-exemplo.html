@@ -3,8 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <!-- Exemplo mínimo do formato que carousel_studio/render.mjs espera: cada .slide vira
-     uma página 1080x1080 do PDF. Sem Google Fonts para renderizar offline. -->
+     uma página 1080x1080 do PDF. Sem Google Fonts para renderizar offline.
+     Cores da identidade fictícia de examples/identidade-exemplo.md, por papel. -->
 <style>
+  :root {
+    --cor-fundo-impacto: #183A37;
+    --cor-fundo-principal: #F5F3EE;
+    --cor-acento-principal: #F4845F;
+    --cor-acento-secundario: #3E6C8F;
+    --cor-acento-terciario: #7A4E7E;
+  }
   @page { size: 1080px 1080px; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Barlow', 'Helvetica Neue', Arial, sans-serif; }
@@ -25,7 +33,7 @@
     justify-content: center;
     gap: 40px;
   }
-  .num { font-size: 32px; font-weight: 700; color: #379683; }
+  .num { font-size: 32px; font-weight: 700; color: var(--cor-acento-secundario); }
   h1 { font-size: 96px; line-height: 1; font-weight: 900; text-transform: uppercase; }
   h2 { font-size: 64px; line-height: 1.1; font-weight: 900; }
   p { font-size: 36px; line-height: 1.35; }
@@ -33,31 +41,31 @@
 </head>
 <body>
 
-<div class="slide" style="background:#0A122A; color:#FFF7E6;">
+<div class="slide" style="background:var(--cor-fundo-impacto); color:var(--cor-fundo-principal);">
   <div class="safe-area">
     <h1>Consulta lenta?<br>Rode EXPLAIN antes.</h1>
   </div>
 </div>
 
-<div class="slide" style="background:#FFF7E6; color:#05386B;">
+<div class="slide" style="background:var(--cor-fundo-principal); color:var(--cor-fundo-impacto);">
   <div class="safe-area">
     <span class="num">01</span>
     <h2>Custo por etapa do plano</h2>
     <svg width="600" height="260" viewBox="0 0 600 260">
-      <rect x="220" y="20" width="360" height="56" fill="#05386B" rx="4"/>
-      <text x="200" y="58" text-anchor="end" font-size="28" fill="#05386B">Junção</text>
-      <rect x="220" y="100" width="140" height="56" fill="#379683" rx="4"/>
-      <text x="200" y="138" text-anchor="end" font-size="28" fill="#05386B">Filtro</text>
-      <rect x="220" y="180" width="60" height="56" fill="#5CDB95" rx="4"/>
-      <text x="200" y="218" text-anchor="end" font-size="28" fill="#05386B">Ordenação</text>
+      <rect x="220" y="20" width="360" height="56" rx="4" style="fill: var(--cor-fundo-impacto)"/>
+      <text x="200" y="58" text-anchor="end" font-size="28" style="fill: var(--cor-fundo-impacto)">Junção</text>
+      <rect x="220" y="100" width="140" height="56" rx="4" style="fill: var(--cor-acento-secundario)"/>
+      <text x="200" y="138" text-anchor="end" font-size="28" style="fill: var(--cor-fundo-impacto)">Filtro</text>
+      <rect x="220" y="180" width="60" height="56" rx="4" style="fill: var(--cor-acento-principal)"/>
+      <text x="200" y="218" text-anchor="end" font-size="28" style="fill: var(--cor-fundo-impacto)">Ordenação</text>
     </svg>
     <p>O gargalo nem sempre está onde a gente imagina.</p>
   </div>
 </div>
 
-<div class="slide" style="background:#05386B; color:#FFF7E6;">
+<div class="slide" style="background:var(--cor-fundo-impacto); color:var(--cor-fundo-principal);">
   <div class="safe-area">
-    <span class="num" style="color:#5CDB95;">02</span>
+    <span class="num" style="color:var(--cor-acento-principal);">02</span>
     <h2>Estimado longe do real?</h2>
     <p>O EXPLAIN ANALYZE compara as linhas estimadas com as reais. Diferença grande costuma ser estatística desatualizada.</p>
   </div>
