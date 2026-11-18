@@ -36,7 +36,7 @@ Pra mim, é a forma mais honesta de mostrar o que o linkeasy faz. Deixo ele se e
 
 | Métrica | Valor | De onde vem |
 |---|---|---|
-| Posts publicados no LinkedIn pela ferramenta | 3 | Registro local dos posts publicados (arquivos com `published_at`), fora do repositório por ser conteúdo pessoal. Não conta um post de teste. |
+| Posts publicados no LinkedIn pela ferramenta | 3 | Arquivos com `status: published` em `history/`. A pasta fica fora do repositório porque é conteúdo pessoal. Não conta um post de teste. |
 | Carrosséis renderizados | 4 | PDFs gerados localmente em `carousel_studio/rascunhos/`. Um deles é a demonstração deste README. |
 | Testes automatizados | 78 | `make test` (pytest), roda no CI a cada push |
 | Cobertura de `post.py` e `auth.py` | 99% (3 de 412 linhas sem cobertura) | `make test` (pytest-cov), roda no CI a cada push |
