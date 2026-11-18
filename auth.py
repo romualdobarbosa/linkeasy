@@ -124,11 +124,12 @@ def exchange_code_for_token(code):
     return response.json()
 
 
-def save_token(token_data, path=TOKEN_FILE, now=None):
+def save_token(token_data, path=None, now=None):
     """Grava o token com `obtained_at` (ISO 8601, UTC) e permissão 0600.
 
     Devolve o dicionário gravado.
     """
+    path = path or TOKEN_FILE
     obtained_at = now or datetime.now(UTC)
     data = {**token_data, "obtained_at": obtained_at.isoformat()}
     fd = os.open(path, os.O_CREAT | os.O_TRUNC | os.O_WRONLY, 0o600)
@@ -148,16 +149,37 @@ def expires_at(token_data):
         return None
 
 
+def missing_credentials():
+    """Nomes das variáveis de ambiente de credencial que estão vazias."""
+    missing = []
+    if not CLIENT_ID:
+        missing.append("LINKEDIN_CLIENT_ID")
+    if not CLIENT_SECRET:
+        missing.append("LINKEDIN_CLIENT_SECRET")
+    return missing
+
+
 def main():
+    missing = missing_credentials()
+    if missing:
+        print(f"Erro: faltam credenciais no ambiente (.env): {', '.join(missing)}.")
+        return 2
+
     state = new_state()
+    try:
+        server = CallbackServer((CALLBACK_HOST, CALLBACK_PORT), state)
+    except OSError as exc:
+        print(f"Erro: nao consegui abrir o servidor de callback em {REDIRECT_URI}: {exc}")
+        return 1
+
     print("Abrindo LinkedIn para autenticacao...")
     webbrowser.open(get_auth_url(state))
-
-    server = CallbackServer((CALLBACK_HOST, CALLBACK_PORT), state)
     print(f"Aguardando callback em {REDIRECT_URI} ...")
-    while server.auth_code is None and server.error is None:
-        server.handle_request()
-    server.server_close()
+    try:
+        while server.auth_code is None and server.error is None:
+            server.handle_request()
+    finally:
+        server.server_close()
 
     if server.error:
         print(f"Erro: {server.error}")

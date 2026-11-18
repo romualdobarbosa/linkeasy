@@ -6,6 +6,7 @@ import stat
 import threading
 import urllib.parse
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 import requests
@@ -14,6 +15,13 @@ import responses
 import auth
 
 STATE = "state-de-teste-123"
+
+
+@pytest.fixture(autouse=True)
+def isolar_arquivos(monkeypatch, tmp_path):
+    """Nenhum teste deste arquivo pode tocar no .token.json real do repositório."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(auth, "TOKEN_FILE", str(tmp_path / "token-ficticio.json"))
 
 
 @pytest.fixture
@@ -195,3 +203,98 @@ def test_save_token_corrige_permissao_de_arquivo_existente(tmp_path):
     assert json.loads(path.read_text()) == saved
     assert datetime.fromisoformat(saved["obtained_at"]).tzinfo is not None
     assert auth.expires_at(saved) is None
+
+
+# --- main ---------------------------------------------------------------------
+
+
+@pytest.fixture
+def main_isolado(monkeypatch, credenciais_ficticias):
+    """Prepara main() sem navegador, sem porta 8000 e sem tocar no .token.json real.
+
+    Devolve uma função que define o que o "callback" vai entregar.
+    """
+    abertos = []
+    monkeypatch.setattr(auth.webbrowser, "open", abertos.append)
+    monkeypatch.setattr(auth, "CALLBACK_PORT", 0)
+
+    def configurar(auth_code=None, error=None):
+        class ServidorFalso(auth.CallbackServer):
+            def handle_request(self):
+                self.auth_code, self.error = auth_code, error
+
+        monkeypatch.setattr(auth, "CallbackServer", ServidorFalso)
+        return abertos
+
+    return configurar
+
+
+@pytest.mark.parametrize("faltando", ["CLIENT_ID", "CLIENT_SECRET"])
+def test_main_sem_credenciais_falha_antes_do_navegador(monkeypatch, capsys, faltando):
+    abertos = []
+    monkeypatch.setattr(auth.webbrowser, "open", abertos.append)
+    monkeypatch.setattr(auth, "CLIENT_ID", "id")
+    monkeypatch.setattr(auth, "CLIENT_SECRET", "secret")
+    monkeypatch.setattr(auth, faltando, None)
+
+    assert auth.main() != 0
+    assert abertos == []
+    assert f"LINKEDIN_{faltando}" in capsys.readouterr().out
+
+
+@responses.activate
+def test_main_fluxo_completo_salva_token(main_isolado, capsys):
+    abertos = main_isolado(auth_code="codigo-ficticio")
+    responses.post(auth.TOKEN_URL, json={"access_token": "tok", "expires_in": 3600})
+
+    assert auth.main() == 0
+
+    assert len(abertos) == 1
+    assert "state=" in abertos[0]
+    saved = json.loads(Path(auth.TOKEN_FILE).read_text())
+    assert saved["access_token"] == "tok"
+    assert "obtained_at" in saved
+    assert stat.S_IMODE(os.stat(auth.TOKEN_FILE).st_mode) == 0o600
+    out = capsys.readouterr().out
+    assert f"Expira em: {auth.expires_at(saved).isoformat()}" in out
+
+
+@responses.activate
+def test_main_sem_expires_in_avisa(main_isolado, capsys):
+    main_isolado(auth_code="codigo-ficticio")
+    responses.post(auth.TOKEN_URL, json={"access_token": "tok"})
+
+    assert auth.main() == 0
+    assert "Expiracao desconhecida" in capsys.readouterr().out
+
+
+def test_main_com_erro_no_callback_sai_com_erro(main_isolado, capsys):
+    main_isolado(error="Erro do LinkedIn: user_cancelled_login (cancelou)")
+
+    assert auth.main() != 0
+    assert "user_cancelled_login" in capsys.readouterr().out
+    assert not os.path.exists(auth.TOKEN_FILE)
+
+
+@responses.activate
+def test_main_com_erro_na_troca_sai_com_erro(main_isolado, capsys):
+    main_isolado(auth_code="codigo-ficticio")
+    responses.post(auth.TOKEN_URL, status=400, json={"error": "invalid_grant"})
+
+    assert auth.main() != 0
+    assert "invalid_grant" in capsys.readouterr().out
+    assert not os.path.exists(auth.TOKEN_FILE)
+
+
+def test_main_com_porta_ocupada_sai_com_erro(monkeypatch, capsys, credenciais_ficticias):
+    abertos = []
+    monkeypatch.setattr(auth.webbrowser, "open", abertos.append)
+
+    def explode(*args, **kwargs):
+        raise OSError("Address already in use")
+
+    monkeypatch.setattr(auth, "CallbackServer", explode)
+
+    assert auth.main() != 0
+    assert abertos == []
+    assert "Address already in use" in capsys.readouterr().out
