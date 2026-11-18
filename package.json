@@ -1,15 +1,25 @@
 {
   "name": "linkeasy",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "description": "AI-orchestrated LinkedIn content pipeline: renders carousels (PDF) and infographics (PNG) with Playwright",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "render:carousel": "node carousel_studio/render.mjs",
+    "render:infographic": "node infographic/render.mjs"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "linkedin",
+    "playwright",
+    "infographic",
+    "carousel",
+    "claude-code"
+  ],
+  "author": "Romualdo Barbosa",
+  "license": "MIT",
   "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "@antv/infographic": "^0.2.19",
     "playwright": "^1.60.0"
