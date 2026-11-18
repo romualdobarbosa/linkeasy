@@ -310,3 +310,104 @@ def test_contagens_batem_com_snapshot():
     assert sorted(atual) == sorted(esperado)
     for nome, contagem in atual.items():
         assert contagem == esperado[nome], f"{nome} mudou"
+
+
+# --- registro dos totais no frontmatter e resumo ---
+
+
+def test_gravar_totais_acrescenta_antes_do_fechamento():
+    texto = "---\nscheduled_at: 2026-01-15 09:00\nstatus: queue\n---\nCorpo: com dois-pontos.\n"
+    novo = padroes.gravar_totais(texto, 12, 3)
+    assert novo == (
+        "---\nscheduled_at: 2026-01-15 09:00\nstatus: queue\n"
+        "padroes_antes: 12\npadroes_depois: 3\n---\nCorpo: com dois-pontos.\n"
+    )
+    assert padroes.ler_totais(novo) == (12, 3)
+
+
+def test_gravar_totais_troca_valor_existente_no_lugar():
+    texto = "---\npadroes_antes: 1\nstatus: queue\npadroes_depois: 1\n---\nCorpo\n"
+    novo = padroes.gravar_totais(texto, 7, 0)
+    assert novo == "---\npadroes_antes: 7\nstatus: queue\npadroes_depois: 0\n---\nCorpo\n"
+
+
+def test_gravar_totais_sem_frontmatter_cria_um():
+    novo = padroes.gravar_totais("Só corpo.\n", 4, 1)
+    assert novo == "---\npadroes_antes: 4\npadroes_depois: 1\n---\nSó corpo.\n"
+
+
+def test_gravar_totais_frontmatter_sem_fechamento_nao_e_frontmatter():
+    novo = padroes.gravar_totais("---\nsolto\n", 2, 0)
+    assert padroes.ler_totais(novo) == (2, 0)
+    assert novo.endswith("---\nsolto\n")
+
+
+def test_ler_totais_ignora_corpo_e_incompletos():
+    assert padroes.ler_totais("Corpo\npadroes_antes: 3\n") is None
+    assert padroes.ler_totais("---\npadroes_antes: 3\n---\npadroes_depois: 1\n") is None
+    assert padroes.ler_totais("---\npadroes_antes: x\npadroes_depois: 1\n---\n") is None
+
+
+def test_resumo_agrega_so_posts_medidos():
+    textos = [
+        "---\npadroes_antes: 10\npadroes_depois: 1\n---\nA",
+        "---\npadroes_antes: 5\npadroes_depois: 0\n---\nB",
+        "---\nstatus: published\n---\nC",
+    ]
+    assert padroes.resumo(textos) == {
+        "posts": 2,
+        "antes": 15,
+        "depois": 1,
+        "removidos_por_post": 7.0,
+    }
+
+
+def test_resumo_vazio():
+    assert padroes.resumo([]) == {"posts": 0, "antes": 0, "depois": 0, "removidos_por_post": 0.0}
+
+
+def test_cli_gravar(tmp_path, capsys):
+    antes = tmp_path / "antes.md"
+    depois = tmp_path / "depois.md"
+    antes.write_text("Isso é crucial — e robusto.", encoding="utf-8")
+    depois.write_text("---\nstatus: for_review\n---\nIsso importa.\n", encoding="utf-8")
+    assert padroes.main([str(antes), str(depois), "--gravar"]) == 0
+    assert padroes.ler_totais(depois.read_text(encoding="utf-8")) == (3, 0)
+    assert "total" in capsys.readouterr().out
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["antes.md", "depois.md"]
+
+
+def test_cli_gravar_com_um_arquivo_e_erro(tmp_path, capsys):
+    arq = tmp_path / "a.md"
+    arq.write_text("x", encoding="utf-8")
+    assert padroes.main([str(arq), "--gravar"]) == 2
+    assert "--gravar" in capsys.readouterr().err
+    assert arq.read_text(encoding="utf-8") == "x"
+
+
+def test_cli_resumo(tmp_path, capsys):
+    (tmp_path / "a.md").write_text("---\npadroes_antes: 4\npadroes_depois: 1\n---\nA", "utf-8")
+    (tmp_path / "b.md").write_text("---\nstatus: published\n---\nB", "utf-8")
+    assert padroes.main(["--resumo", str(tmp_path), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == {
+        "posts": 1,
+        "antes": 4,
+        "depois": 1,
+        "removidos_por_post": 3.0,
+    }
+    assert padroes.main(["--resumo", str(tmp_path)]) == 0
+    assert "removidos por post" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["--resumo", "nao-existe"],
+        ["--resumo", ".", "a.md"],
+        ["--resumo", ".", "--gravar"],
+        ["--snapshot", ".", "--gravar"],
+    ],
+)
+def test_cli_resumo_e_snapshot_erros(argv, capsys):
+    assert padroes.main(argv) == 2
+    assert "erro" in capsys.readouterr().err

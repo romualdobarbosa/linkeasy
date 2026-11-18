@@ -31,12 +31,15 @@ Uso:
     uv run padroes.py ANTES DEPOIS           # tabela antes/depois/diferença
     uv run padroes.py ... --json             # mesma coisa em JSON
     uv run padroes.py --snapshot DIR         # JSON com as contagens de DIR/*-antes.md e *-depois.md
+    uv run padroes.py ANTES DEPOIS --gravar  # grava padroes_antes e padroes_depois no DEPOIS
+    uv run padroes.py --resumo DIR           # agrega os totais gravados nos DIR/*.md
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from collections.abc import Sequence
@@ -380,6 +383,70 @@ def snapshot(arquivos: dict[str, str]) -> dict[str, dict[str, int]]:
     return {nome: contar(texto) for nome, texto in sorted(arquivos.items())}
 
 
+CHAVE_ANTES = "padroes_antes"
+CHAVE_DEPOIS = "padroes_depois"
+_CHAVE_TOTAL = re.compile(rf"^({CHAVE_ANTES}|{CHAVE_DEPOIS})[ \t]*:[ \t]*(\d+)[ \t]*$")
+
+
+def gravar_totais(texto: str, antes: int, depois: int) -> str:
+    """Devolve o texto com `padroes_antes` e `padroes_depois` no frontmatter.
+
+    Chave que já existe troca de valor no lugar; chave nova entra antes do --- de fechamento.
+    Sem frontmatter, cria um. O corpo não muda.
+    """
+    novas = {CHAVE_ANTES: antes, CHAVE_DEPOIS: depois}
+    linhas = texto.split("\n")
+    fim = None
+    if linhas[0].rstrip("\r") == "---":
+        fim = next((i for i in range(1, len(linhas)) if linhas[i].rstrip("\r") == "---"), None)
+    if fim is None:
+        cabeca = ["---", *(f"{k}: {v}" for k, v in novas.items()), "---"]
+        return "\n".join(cabeca + linhas)
+    for i in range(1, fim):
+        m = _CHAVE_TOTAL.match(linhas[i].rstrip("\r"))
+        if m and m[1] in novas:
+            linhas[i] = f"{m[1]}: {novas.pop(m[1])}"
+    linhas[fim:fim] = [f"{k}: {v}" for k, v in novas.items()]
+    return "\n".join(linhas)
+
+
+def ler_totais(texto: str) -> tuple[int, int] | None:
+    """(`padroes_antes`, `padroes_depois`) do frontmatter, ou None se faltar algum dos dois."""
+    linhas = texto.split("\n")
+    if linhas[0].rstrip("\r") != "---":
+        return None
+    achados: dict[str, int] = {}
+    for linha in linhas[1:]:
+        if linha.rstrip("\r") == "---":
+            break
+        m = _CHAVE_TOTAL.match(linha.rstrip("\r"))
+        if m:
+            achados[m[1]] = int(m[2])
+    if CHAVE_ANTES in achados and CHAVE_DEPOIS in achados:
+        return achados[CHAVE_ANTES], achados[CHAVE_DEPOIS]
+    return None
+
+
+def resumo(textos: Sequence[str]) -> dict[str, Any]:
+    """Agregado dos posts que têm os totais gravados. Os outros são ignorados."""
+    totais = [t for t in map(ler_totais, textos) if t is not None]
+    antes = sum(a for a, _ in totais)
+    depois = sum(d for _, d in totais)
+    media = round((antes - depois) / len(totais), 1) if totais else 0.0
+    return {"posts": len(totais), "antes": antes, "depois": depois, "removidos_por_post": media}
+
+
+def tabela_resumo(r: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            f"posts medidos           {r['posts']:>6}",
+            f"padrões antes           {r['antes']:>6}",
+            f"padrões depois          {r['depois']:>6}",
+            f"removidos por post      {r['removidos_por_post']:>6}",
+        ]
+    )
+
+
 def tabela(contagem: dict[str, int]) -> str:
     linhas = [f"{'padrão':<24}{'n':>5}"]
     linhas += [f"{i:<24}{n:>5}" for i, n in contagem.items() if n]
@@ -405,6 +472,13 @@ def _ler(caminho: str) -> str:
     return Path(caminho).read_text(encoding="utf-8")
 
 
+def _escrever(arquivo: Path, texto: str) -> None:
+    """Escrita atômica: grava num temporário na mesma pasta e troca de nome."""
+    tmp = arquivo.with_name(f".{arquivo.name}.tmp")
+    tmp.write_text(texto, encoding="utf-8")
+    os.replace(tmp, arquivo)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="padroes.py", description="Conta padrões de escrita de IA em português."
@@ -416,13 +490,35 @@ def main(argv: Sequence[str] | None = None) -> int:
         metavar="DIR",
         help="imprime em JSON as contagens de DIR/*-antes.md e DIR/*-depois.md",
     )
+    parser.add_argument(
+        "--gravar",
+        action="store_true",
+        help="com ANTES DEPOIS, grava os totais no frontmatter do DEPOIS",
+    )
+    parser.add_argument(
+        "--resumo",
+        metavar="DIR",
+        help="agrega os totais gravados nos DIR/*.md (ex.: history/)",
+    )
     try:
         args = parser.parse_args(argv)
     except SystemExit as e:
         return int(e.code or 0)
 
+    if args.resumo is not None:
+        if args.arquivos or args.snapshot is not None or args.gravar:
+            print("erro: --resumo não se combina com outros argumentos", file=sys.stderr)
+            return 2
+        pasta = Path(args.resumo)
+        if not pasta.is_dir():
+            print(f"erro: pasta não encontrada: {pasta}", file=sys.stderr)
+            return 2
+        r = resumo([p.read_text(encoding="utf-8") for p in sorted(pasta.glob("*.md"))])
+        print(_json(r) if args.json else tabela_resumo(r))
+        return 0
+
     if args.snapshot is not None:
-        if args.arquivos:
+        if args.arquivos or args.gravar:
             print("erro: --snapshot não aceita arquivos avulsos", file=sys.stderr)
             return 2
         pasta = Path(args.snapshot)
@@ -442,12 +538,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"erro: não consegui ler o arquivo: {e}", file=sys.stderr)
         return 2
 
+    if args.gravar and len(textos) != 2:
+        print("erro: --gravar precisa de ANTES DEPOIS", file=sys.stderr)
+        return 2
+
     if len(textos) == 1:
         c = contar(textos[0])
         print(_json(c) if args.json else tabela(c))
     else:
         comp = comparar(*textos)
         print(_json(comp) if args.json else tabela_comparacao(comp))
+        if args.gravar:
+            t = comp["total"]
+            _escrever(Path(args.arquivos[1]), gravar_totais(textos[1], t["antes"], t["depois"]))
     return 0
 
 
