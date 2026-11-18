@@ -4,6 +4,7 @@ import os
 import secrets
 import urllib.parse
 import webbrowser
+from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import requests
@@ -19,6 +20,12 @@ CALLBACK_PATH = "/callback"
 REDIRECT_URI = f"http://{CALLBACK_HOST}:{CALLBACK_PORT}{CALLBACK_PATH}"
 SCOPES = "openid profile w_member_social"
 TOKEN_FILE = ".token.json"
+TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken"
+HTTP_TIMEOUT = 30  # segundos
+
+
+class AuthError(Exception):
+    """Falha no fluxo de autenticação, com mensagem pronta para o usuário."""
 
 
 class CallbackServer(HTTPServer):
@@ -94,18 +101,51 @@ def get_auth_url(state):
 
 
 def exchange_code_for_token(code):
-    response = requests.post(
-        "https://www.linkedin.com/oauth/v2/accessToken",
-        data={
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": REDIRECT_URI,
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-        },
-    )
-    response.raise_for_status()
+    try:
+        response = requests.post(
+            TOKEN_URL,
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": REDIRECT_URI,
+                "client_id": CLIENT_ID,
+                "client_secret": CLIENT_SECRET,
+            },
+            timeout=HTTP_TIMEOUT,
+        )
+    except requests.RequestException as exc:
+        raise AuthError(f"Falha de rede ao trocar o codigo por token: {exc}") from exc
+
+    if not response.ok:
+        raise AuthError(
+            f"LinkedIn recusou a troca do codigo por token "
+            f"(HTTP {response.status_code}): {response.text[:500]}"
+        )
     return response.json()
+
+
+def save_token(token_data, path=TOKEN_FILE, now=None):
+    """Grava o token com `obtained_at` (ISO 8601, UTC) e permissão 0600.
+
+    Devolve o dicionário gravado.
+    """
+    obtained_at = now or datetime.now(UTC)
+    data = {**token_data, "obtained_at": obtained_at.isoformat()}
+    fd = os.open(path, os.O_CREAT | os.O_TRUNC | os.O_WRONLY, 0o600)
+    # O mode do os.open só vale na criação; se o arquivo já existia, corrige aqui.
+    os.chmod(path, 0o600)
+    with os.fdopen(fd, "w") as f:
+        json.dump(data, f, indent=2)
+    return data
+
+
+def expires_at(token_data):
+    """Data de expiração (obtained_at + expires_in) ou None se faltar dado."""
+    try:
+        obtained = datetime.fromisoformat(token_data["obtained_at"])
+        return obtained + timedelta(seconds=int(token_data["expires_in"]))
+    except (KeyError, TypeError, ValueError):
+        return None
 
 
 def main():
@@ -124,13 +164,19 @@ def main():
         return 1
 
     print("Trocando codigo por token...")
-    token_data = exchange_code_for_token(server.auth_code)
+    try:
+        token_data = exchange_code_for_token(server.auth_code)
+    except AuthError as exc:
+        print(f"Erro: {exc}")
+        return 1
 
-    with open(TOKEN_FILE, "w") as f:
-        json.dump(token_data, f, indent=2)
-
+    saved = save_token(token_data)
     print(f"Token salvo em {TOKEN_FILE}")
-    print(f"Expira em: {token_data.get('expires_in', '?')} segundos (~60 dias)")
+    expiry = expires_at(saved)
+    if expiry:
+        print(f"Expira em: {expiry.isoformat()}")
+    else:
+        print("Expiracao desconhecida (LinkedIn nao informou expires_in).")
     return 0
 
 

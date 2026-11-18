@@ -1,10 +1,15 @@
 """Testes do auth.py. Nada aqui fala com o LinkedIn nem abre navegador."""
 
+import json
+import os
+import stat
 import threading
 import urllib.parse
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import requests
+import responses
 
 import auth
 
@@ -100,3 +105,93 @@ def test_callback_fora_do_path_da_404(callback_server):
     assert resp.status_code == 404
     assert server.auth_code is None
     assert server.error is None
+
+
+# --- Troca de código por token ----------------------------------------------
+
+
+@pytest.fixture
+def credenciais_ficticias(monkeypatch):
+    monkeypatch.setattr(auth, "CLIENT_ID", "client-id-ficticio")
+    monkeypatch.setattr(auth, "CLIENT_SECRET", "client-secret-ficticio")
+
+
+@responses.activate
+def test_troca_de_codigo_envia_campos_certos(credenciais_ficticias):
+    responses.post(auth.TOKEN_URL, json={"access_token": "tok", "expires_in": 5184000})
+
+    data = auth.exchange_code_for_token("codigo-ficticio")
+
+    assert data == {"access_token": "tok", "expires_in": 5184000}
+    body = urllib.parse.parse_qs(responses.calls[0].request.body)
+    assert body == {
+        "grant_type": ["authorization_code"],
+        "code": ["codigo-ficticio"],
+        "redirect_uri": [auth.REDIRECT_URI],
+        "client_id": ["client-id-ficticio"],
+        "client_secret": ["client-secret-ficticio"],
+    }
+
+
+@responses.activate
+def test_troca_de_codigo_com_erro_http(credenciais_ficticias):
+    responses.post(auth.TOKEN_URL, status=401, json={"error": "invalid_client"})
+
+    with pytest.raises(auth.AuthError, match="HTTP 401.*invalid_client"):
+        auth.exchange_code_for_token("codigo-ficticio")
+
+
+@responses.activate
+def test_troca_de_codigo_com_falha_de_rede(credenciais_ficticias):
+    responses.post(auth.TOKEN_URL, body=requests.ConnectionError("sem rede"))
+
+    with pytest.raises(auth.AuthError, match="rede"):
+        auth.exchange_code_for_token("codigo-ficticio")
+
+
+def test_troca_de_codigo_usa_timeout(monkeypatch, credenciais_ficticias):
+    chamadas = {}
+
+    class Resp:
+        ok = True
+
+        def json(self):
+            return {"access_token": "tok"}
+
+    def fake_post(url, **kwargs):
+        chamadas.update(kwargs)
+        return Resp()
+
+    monkeypatch.setattr(auth.requests, "post", fake_post)
+    auth.exchange_code_for_token("x")
+    assert chamadas["timeout"] == auth.HTTP_TIMEOUT
+
+
+# --- Gravação do token -------------------------------------------------------
+
+
+def test_save_token_grava_obtained_at_e_modo_0600(tmp_path):
+    path = tmp_path / "token.json"
+    now = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
+
+    saved = auth.save_token({"access_token": "tok", "expires_in": 3600}, path=path, now=now)
+
+    assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+    on_disk = json.loads(path.read_text())
+    assert on_disk == saved
+    assert on_disk["obtained_at"] == "2026-01-02T03:04:05+00:00"
+    assert on_disk["expires_in"] == 3600
+    assert auth.expires_at(on_disk) == now + timedelta(seconds=3600)
+
+
+def test_save_token_corrige_permissao_de_arquivo_existente(tmp_path):
+    path = tmp_path / "token.json"
+    path.write_text("velho")
+    path.chmod(0o644)
+
+    saved = auth.save_token({"access_token": "tok"}, path=path)
+
+    assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+    assert json.loads(path.read_text()) == saved
+    assert datetime.fromisoformat(saved["obtained_at"]).tzinfo is not None
+    assert auth.expires_at(saved) is None
