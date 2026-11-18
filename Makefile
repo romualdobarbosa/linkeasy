@@ -3,7 +3,7 @@
 all: lint test render-smoke
 
 test:
-	uv run pytest --cov=post --cov=auth --cov-report=term
+	uv run pytest --cov=post --cov=auth --cov=padroes --cov-report=term
 
 lint:
 	uv run ruff check .
