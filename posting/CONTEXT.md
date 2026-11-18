@@ -34,10 +34,12 @@ scheduled_at: 2026-05-15 08:00   # quando publicar, formato AAAA-MM-DD HH:MM
 status: queue                    # vira published quando o post.py publica
 published_at: 2026-05-15 08:32   # gravado pelo post.py
 post_id: urn:li:share:...        # gravado pelo post.py (header x-restli-id da API)
+padroes_antes: 12                # gravado pelo padroes.py no studio (opcional)
+padroes_depois: 1                # gravado pelo padroes.py no studio (opcional)
 ---
 ```
 
-Na fila eu preencho só `scheduled_at` e `status: queue`. Os campos `status: published`, `published_at` e `post_id` quem grava é o `post.py`, logo depois que a API confirma a publicação. Não edite esses três à mão.
+Na fila eu preencho só `scheduled_at` e `status: queue`. Os campos `status: published`, `published_at` e `post_id` quem grava é o `post.py`, logo depois que a API confirma a publicação. Não edite esses três à mão. `padroes_antes` e `padroes_depois` vêm da medição do `/humanizer` no studio (ver `studio/CONTEXT.md`) e também não se editam à mão.
 
 O horário é local de America/Sao_Paulo. Para usar outro fuso, defina `LINKEASY_TZ` no `.env` (por exemplo `LINKEASY_TZ=Europe/Lisbon`).
 

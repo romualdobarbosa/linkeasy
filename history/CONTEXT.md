@@ -19,10 +19,12 @@ scheduled_at: 2026-05-13 08:00   # horário planejado
 status: published
 published_at: 2026-05-13 08:32   # horário real da publicação
 post_id: urn:li:share:...        # ID que a API do LinkedIn devolveu
+padroes_antes: 12                # padrões de IA antes do /humanizer (opcional)
+padroes_depois: 1                # padrões de IA depois do /humanizer (opcional)
 ---
 ```
 
-`status`, `published_at` e `post_id` são gravados pelo `post.py` antes de mover o arquivo. Os horários são locais de America/Sao_Paulo, ou do fuso em `LINKEASY_TZ` se estiver definido.
+`status`, `published_at` e `post_id` são gravados pelo `post.py` antes de mover o arquivo. `padroes_antes` e `padroes_depois` chegam do studio, onde o `padroes.py` mede o `/humanizer`. O agregado sai com `uv run padroes.py --resumo history`. Os horários são locais de America/Sao_Paulo, ou do fuso em `LINKEASY_TZ` se estiver definido.
 
 ## Regras
 
