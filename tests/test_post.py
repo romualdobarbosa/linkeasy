@@ -190,6 +190,70 @@ def test_person_id_ausente(monkeypatch):
         post.publish("tok", "texto")
 
 
+# --- token ------------------------------------------------------------------------------
+
+
+def grava_token(path, **extra):
+    path.write_text(post.json.dumps({"access_token": "tok-ficticio", **extra}))
+
+
+@pytest.fixture
+def token_file(tmp_path, monkeypatch):
+    path = tmp_path / ".token.json"
+    monkeypatch.setattr(post, "TOKEN_FILE", str(path))
+    return path
+
+
+AGORA = datetime(2026, 5, 15, 9, 0, tzinfo=SP)
+
+
+def test_token_valido_sem_aviso(token_file, capsys):
+    grava_token(token_file, obtained_at="2026-05-01T09:00:00-03:00", expires_in=60 * 86400)
+    assert post.load_token(AGORA) == "tok-ficticio"
+    assert capsys.readouterr().err == ""
+
+
+def test_token_expirado(token_file):
+    grava_token(token_file, obtained_at="2026-03-01T09:00:00-03:00", expires_in=60 * 86400)
+    with pytest.raises(post.PostError, match="expirou .*uv run auth.py"):
+        post.load_token(AGORA)
+
+
+def test_token_quase_expirando_avisa(token_file, capsys):
+    grava_token(token_file, obtained_at="2026-03-20T09:00:00-03:00", expires_in=60 * 86400)
+    assert post.load_token(AGORA) == "tok-ficticio"
+    assert "expira em 2026-05-19 09:00" in capsys.readouterr().err
+
+
+def test_token_sem_obtained_at_avisa(token_file, capsys):
+    grava_token(token_file)
+    assert post.load_token(AGORA) == "tok-ficticio"
+    assert "não dá para checar" in capsys.readouterr().err
+
+
+def test_token_obtained_at_sem_fuso_usa_fuso_local(token_file):
+    grava_token(token_file, obtained_at="2026-03-01T09:00:00", expires_in=60 * 86400)
+    with pytest.raises(post.PostError, match="expirou"):
+        post.load_token(AGORA)
+
+
+def test_token_obtained_at_invalido(token_file):
+    grava_token(token_file, obtained_at="ontem", expires_in=10)
+    with pytest.raises(post.PostError, match="inválidos"):
+        post.load_token(AGORA)
+
+
+def test_token_arquivo_ausente(token_file):
+    with pytest.raises(post.PostError, match="não encontrado"):
+        post.load_token(AGORA)
+
+
+def test_token_arquivo_corrompido(token_file):
+    token_file.write_text("{nao e json")
+    with pytest.raises(post.PostError, match="sem access_token"):
+        post.load_token(AGORA)
+
+
 # --- imagens ------------------------------------------------------------------------------
 
 

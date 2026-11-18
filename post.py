@@ -3,7 +3,7 @@ import os
 import shutil
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -26,6 +26,8 @@ LINKEDIN_VERSION = "202506"
 # Horários do frontmatter são locais deste fuso (sobrescrevível com LINKEASY_TZ).
 DEFAULT_TZ = "America/Sao_Paulo"
 DATE_FORMAT = "%Y-%m-%d %H:%M"
+
+TOKEN_WARN_DAYS = 7
 
 TIMEOUT = (10, 60)  # (conexão, leitura) em segundos
 MAX_ATTEMPTS = 3
@@ -106,9 +108,42 @@ def api_headers(token: str) -> dict[str, str]:
     }
 
 
-def load_token():
-    with open(TOKEN_FILE) as f:
-        return json.load(f)["access_token"]
+def load_token(now: datetime | None = None) -> str:
+    """Lê o access_token de TOKEN_FILE e confere a validade se auth.py gravou obtained_at."""
+    path = Path(TOKEN_FILE)
+    if not path.exists():
+        raise PostError(f"{TOKEN_FILE} não encontrado, rode `uv run auth.py`")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        token = data["access_token"]
+    except (json.JSONDecodeError, KeyError, TypeError):
+        raise PostError(f"{TOKEN_FILE} sem access_token válido, rode `uv run auth.py`") from None
+
+    obtained_at = data.get("obtained_at")
+    expires_in = data.get("expires_in")
+    if not obtained_at or expires_in is None:
+        print(
+            f"Aviso: {TOKEN_FILE} sem obtained_at/expires_in, não dá para checar a validade.",
+            file=sys.stderr,
+        )
+        return token
+    try:
+        obtained = datetime.fromisoformat(obtained_at)
+        expires = obtained + timedelta(seconds=int(expires_in))
+    except (ValueError, TypeError):
+        raise PostError(f"{TOKEN_FILE}: obtained_at/expires_in inválidos") from None
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=get_tz())
+
+    now = now or datetime.now(get_tz())
+    if now >= expires:
+        raise PostError(f"token expirou em {format_local(expires)}, rode `uv run auth.py`")
+    if expires - now < timedelta(days=TOKEN_WARN_DAYS):
+        print(
+            f"Aviso: o token expira em {format_local(expires)}; renove com `uv run auth.py`.",
+            file=sys.stderr,
+        )
+    return token
 
 
 def parse_post(file: Path):
