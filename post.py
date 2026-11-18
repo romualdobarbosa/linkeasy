@@ -19,11 +19,10 @@ QUEUE_DIR = Path("posting/queue")
 HISTORY_DIR = Path("history")
 
 API_BASE = "https://api.linkedin.com/rest"
-# Versão da API (header LinkedIn-Version, formato AAAAMM). Última verificação: 2025-06.
-# O LinkedIn tira versões de suporte em ~1 ano; quando isso acontecer a API passa a recusar
-# as chamadas e é preciso subir esta data. Não deu para conferir sem token: a API responde
-# 401 EMPTY_ACCESS_TOKEN antes de validar a versão.
-LINKEDIN_VERSION = "202506"
+# Versão da API (header LinkedIn-Version, formato AAAAMM). Última verificação: 2026-11-18,
+# quando 202606 a 202611 respondiam e 202512 para trás já devolviam 426 NONEXISTENT_VERSION.
+# O LinkedIn tira cada versão de suporte em ~1 ano; se aparecer 426, é esta data que sobe.
+LINKEDIN_VERSION = "202611"
 
 # Horários do frontmatter são locais deste fuso (sobrescrevível com LINKEASY_TZ).
 DEFAULT_TZ = "America/Sao_Paulo"

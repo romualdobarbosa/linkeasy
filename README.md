@@ -98,7 +98,7 @@ O formato do frontmatter e as regras da fila estão em `posting/CONTEXT.md`.
 
 ## Limitações
 
-- A versão da API (`LinkedIn-Version: 202506`, constante `LINKEDIN_VERSION` no `post.py`) foi verificada pela última vez em junho de 2025. O LinkedIn tira versões de suporte com o tempo e não consegui confirmar se essa ainda responde, porque sem token a API devolve 401 antes de validar a versão. Se as chamadas começarem a ser recusadas, é essa constante que precisa subir.
+- A versão da API (`LinkedIn-Version: 202611`, constante `LINKEDIN_VERSION` no `post.py`) foi conferida em 18/11/2026. O LinkedIn tira cada versão de suporte em cerca de um ano e aí responde 426 `NONEXISTENT_VERSION`. Foi assim que descobri que a 202506, que eu usava antes, já tinha saído. Quando esse erro aparecer, é essa constante que precisa subir.
 - Carrossel em PDF não é publicado pelo `post.py` (ver acima).
 - O access token do LinkedIn expira. O prazo vem no `expires_in` da resposta (em torno de 60 dias). O `post.py` recusa token vencido, avisa quando faltam menos de 7 dias, e aí é rodar `uv run auth.py` de novo. Não há refresh token.
 - Roda local e não tem agendador. O `scheduled_at` diz a partir de quando o post pode sair, mas alguém precisa executar o `post.py`, à mão ou por um cron configurado na própria máquina.
