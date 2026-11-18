@@ -75,18 +75,17 @@ def upload_image(token: str, image_path: Path) -> str:
     return image_urn
 
 
-def find_image(post_file: Path) -> Path | None:
+def find_images(post_file: Path) -> list[Path]:
     image_dir = post_file.parent / post_file.stem
     if not image_dir.is_dir():
-        return None
+        return []
+    images = []
     for ext in ("*.png", "*.jpg", "*.jpeg"):
-        images = sorted(image_dir.glob(ext))
-        if images:
-            return images[0]
-    return None
+        images.extend(image_dir.glob(ext))
+    return sorted(images)
 
 
-def publish(token: str, text: str, image_path: Path | None = None):
+def publish(token: str, text: str, image_paths: list[Path] | None = None):
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
@@ -106,10 +105,18 @@ def publish(token: str, text: str, image_path: Path | None = None):
         "isReshareDisabledByAuthor": False,
     }
 
-    if image_path:
-        print(f"Enviando imagem: {image_path.name}")
-        image_urn = upload_image(token, image_path)
-        body["content"] = {"media": {"id": image_urn}}
+    if image_paths:
+        if len(image_paths) == 1:
+            print(f"Enviando imagem: {image_paths[0].name}")
+            image_urn = upload_image(token, image_paths[0])
+            body["content"] = {"media": {"id": image_urn}}
+        else:
+            images = []
+            for image_path in image_paths:
+                print(f"Enviando imagem: {image_path.name}")
+                image_urn = upload_image(token, image_path)
+                images.append({"id": image_urn, "altText": image_path.stem})
+            body["content"] = {"multiImage": {"images": images}}
 
     response = requests.post(
         "https://api.linkedin.com/rest/posts",
@@ -149,9 +156,10 @@ def main():
             print(f"Agendado para {scheduled_at} — ainda nao e a hora.")
             continue
 
-        image_path = find_image(post_file)
-        print(f"Postando: {post_file.name}" + (f" + {image_path.name}" if image_path else ""))
-        publish(token, body, image_path)
+        image_paths = find_images(post_file)
+        suffix = f" + {len(image_paths)} imagem(ns)" if image_paths else ""
+        print(f"Postando: {post_file.name}{suffix}")
+        publish(token, body, image_paths)
 
         dest = PUBLISHED_DIR / post_file.name
         shutil.move(str(post_file), str(dest))
