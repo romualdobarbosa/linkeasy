@@ -1,8 +1,8 @@
 # linkeasy
 
-Eu queria manter uma presença constante no LinkedIn falando de dados, sem passar a noite escrevendo, montando slide e lembrando de publicar na hora certa. O linkeasy é o pipeline que montei pra isso. Eu dou um tema, ele entrega o texto e o visual prontos e publica o post no horário que eu marquei.
+Eu queria manter uma presença constante no LinkedIn falando de dados, sem passar a noite escrevendo, montando slide e lembrando de publicar na hora certa. O linkeasy é o pipeline que montei pra isso. Eu dou um tema, ele entrega o texto e o visual prontos e publica o post no horário que eu marquei. Comecei fazendo só pra mim, mas hoje qualquer pessoa configura o linkeasy com a própria voz e a própria identidade visual.
 
-**TL;DR (English).** linkeasy is a LinkedIn content pipeline orchestrated by an AI agent (Claude Code) with specialized skills. From a single topic it drafts the post, strips AI writing patterns, renders a PDF carousel or a PNG infographic with Playwright, and queues the post with a schedule. A Python script publishes due posts through the LinkedIn REST API (OAuth 2.0) and records the returned post ID before moving the file to history, so a run that crashes before the move does not publish the same post again. Publishing code is covered by pytest with the API mocked, and CI runs lint, tests and a render smoke test.
+**TL;DR (English).** linkeasy is a LinkedIn content pipeline orchestrated by an AI agent (Claude Code) with specialized skills. From a single topic it drafts the post, strips AI writing patterns, renders a PDF carousel or a PNG infographic with Playwright, and queues the post with a schedule. Anyone can set it up for themselves. An onboarding skill builds a writing-voice skill from the person's own texts and a short interview, and stores their visual identity in a local config file. A deterministic regex detector counts AI writing patterns before and after the rewrite, so the humanizer step is measured instead of trusted, and the humanizer itself is pinned to an upstream version that only changes with explicit approval. A Python script publishes due posts through the LinkedIn REST API (OAuth 2.0) and records the returned post ID before moving the file to history, so a run that crashes before the move does not publish the same post again. Publishing code is covered by pytest with the API mocked, and CI runs lint, tests and a render smoke test.
 
 [![CI](https://github.com/romualdobarbosa/linkeasy/actions/workflows/ci.yml/badge.svg)](https://github.com/romualdobarbosa/linkeasy/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -39,15 +39,18 @@ Pra mim, é a forma mais honesta de mostrar o que o linkeasy faz. Deixo ele se e
 | Posts publicados no LinkedIn pela ferramenta | 4 | Arquivos com `status: published` em `history/`. A pasta fica fora do repositório porque é conteúdo pessoal. Não conta um post de teste. |
 | Carrosséis renderizados | 4 | PDFs gerados localmente em `carousel_studio/rascunhos/`. Um deles é a demonstração deste README. |
 | Tempo do tema ao post pronto | 2min36s (uma medição) | Cronometrado em 18/11/2026, do tema enviado ao post com texto e infográfico aprovados na fila, contando o tempo das minhas aprovações. É uma medição só, então vale como ordem de grandeza. |
-| Testes automatizados | 78 | `make test` (pytest), roda no CI a cada push |
-| Cobertura de `post.py` e `auth.py` | 99% (3 de 412 linhas sem cobertura) | `make test` (pytest-cov), roda no CI a cada push |
+| Testes automatizados | 237 | `make test` (pytest), roda no CI a cada push |
+| Cobertura dos scripts Python (`post.py`, `auth.py`, `padroes.py`, `humanizer_sync.py`) | 99% (5 de 771 linhas sem cobertura) | `make test` (pytest-cov), roda no CI a cada push |
 
 ## Como funciona
 
 ```mermaid
 flowchart TD
     tema["Tema ou contexto"] --> redator["studio/: redator escreve o texto"]
-    redator --> humanizer["/humanizer: tira padrões de escrita de IA"]
+    redator --> voz["voz ativa: reescreve na voz da pessoa"]
+    voz --> humanizer["/humanizer: tira padrões de escrita de IA"]
+    redator -. antes .-> medida["padroes.py: conta padrões antes e depois"]
+    humanizer -. depois .-> medida
     humanizer --> carrossel["/carrossel: PDF de 8 a 12 slides"]
     humanizer --> infografico["/infografista: PNG de 1 imagem"]
     carrossel --> fila["posting/queue/: post com scheduled_at"]
@@ -72,11 +75,13 @@ As skills ficam em `.claude/skills/`, cada uma é um arquivo de instruções par
 
 | Skill | Função |
 |---|---|
-| `/humanizer` | Remove sinais de escrita gerada por IA antes de aprovar um post |
+| `/criar-voz` | Configura o linkeasy pra uma pessoa. Coleta textos que ela escreveu, faz uma entrevista curta, gera a skill de voz dela, testa em rodadas e grava a identidade visual |
+| voz ativa (`voz-<nome>`) | Reescreve o rascunho na voz da pessoa e chama o `/humanizer`. O nome da skill em uso fica em `data/voz/ativa` |
+| `/humanizer` | Remove sinais de escrita gerada por IA. É o [blader/humanizer](https://github.com/blader/humanizer) numa versão fixa, com uma seção a mais de padrões em português |
 | `/carrossel` | Planeja os slides em HTML e renderiza o PDF com Playwright (`carousel_studio/render.mjs`) |
 | `/infografista` | Escolhe um template do AntV Infographic e renderiza o PNG com Playwright (`infographic/render.mjs`) |
 
-O texto do post vem do redator, cujas regras estão em `studio/redator.md`.
+O texto do post vem do redator, cujas regras estão em `studio/redator.md`. O redator cuida de formato e tamanho, e o tom fica com a voz ativa. Nome, foto, tagline e paleta usados no carrossel e no infográfico vêm de `data/identidade.md`. Sem esse arquivo, as skills usam a identidade de exemplo e avisam.
 
 ### Publicação
 
@@ -86,6 +91,12 @@ O texto do post vem do redator, cujas regras estão em `studio/redator.md`.
 O formato do frontmatter e as regras da fila estão em `posting/CONTEXT.md`.
 
 ## Decisões e trade-offs
+
+**Medir o humanizer com regex.** Uma skill de prompt que "tira a cara de IA" é fácil de afirmar e difícil de provar. O `padroes.py` conta, por regex, 16 padrões que dá pra pegar mecanicamente (paralelismo negativo, vocabulário de IA, gerúndio raso, travessão, negrito, emoji, dois-pontos no meio da frase e outros) no rascunho do redator e no texto que sai da voz, e grava os dois totais no frontmatter do post. Mesma entrada, mesmo número. Não usei LLM como juiz porque ele não repete o resultado, nem detector externo de IA porque é caixa-preta e manda o texto pra fora da máquina. O preço é que padrão que depende de sentido, tipo regra de três ou importância inflada sem palavra-chave, passa batido. As listas vêm da [página da Wikipédia em português sobre sinais de texto de IA](https://pt.wikipedia.org/wiki/Wikip%C3%A9dia:Sinais_de_texto_gerado_por_intelig%C3%AAncia_artificial) e de uma curadoria minha.
+
+**Humanizer em versão fixa.** O `humanizer_sync.py` baixa o humanizer do repositório original numa tag, junta a seção em português e grava a versão e o hash. Ele não atualiza sozinho. O motivo apareceu logo, a v4.0.0 passou a deixar o humanizer acrescentar fatos ao texto, e isso bate de frente com a regra de não inventar fato que eu sigo nos meus posts. Por isso ficou na v3.1.0, e o `--status` mostra quando sai versão nova pra eu ler a nota de lançamento antes de decidir.
+
+**Voz e identidade fora do repositório.** As vozes geradas, as amostras de texto e a identidade visual de cada pessoa ficam em arquivos que o `.gitignore` cobre. No repositório só tem uma voz e uma identidade de exemplo, de uma pessoa inventada.
 
 **Publicação sem duplicar.** Criar post na API do LinkedIn não é idempotente. Se o script publicasse e só depois movesse o arquivo, uma queda entre os dois passos faria a próxima execução publicar de novo. Por isso, logo depois do 2xx, o `post.py` grava `status: published`, `published_at` e o `post_id` (header `x-restli-id`) no frontmatter, com escrita atômica, e só então move para `history/`. Na execução seguinte, post com `post_id` não é publicado de novo, só tem o registro concluído. É entrega at-least-once com deduplicação pelo ID. Se o destino já existir em `history/`, o script para em vez de sobrescrever.
 
@@ -107,6 +118,8 @@ O formato do frontmatter e as regras da fila estão em `posting/CONTEXT.md`.
 
 - A versão da API (`LinkedIn-Version: 202611`, constante `LINKEDIN_VERSION` no `post.py`) foi conferida em 18/11/2026. O LinkedIn tira cada versão de suporte em cerca de um ano e aí responde 426 `NONEXISTENT_VERSION`. Foi assim que descobri que a 202506, que eu usava antes, já tinha saído. Quando esse erro aparecer, é essa constante que precisa subir.
 - Carrossel em PDF não é publicado pelo `post.py` (ver a ADR 0001).
+- As listas do `padroes.py` não foram validadas com corpus em português (a própria página da Wikipédia avisa que traduzir a lista em inglês não valida os sinais). O número serve pra comparar versões do mesmo texto, não pra dizer se um texto foi escrito por IA.
+- O corpus de `examples/humanizer/` foi escrito pelo mesmo agente que escreveu as regex, e todo "depois" zerou. Ele prova que o detector funciona, não que o humanizer é bom. A medição que vale é a dos posts reais, e até agora nenhum post publicado passou por ela.
 - O access token do LinkedIn expira. O prazo vem no `expires_in` da resposta (em torno de 60 dias). O `post.py` recusa token vencido, avisa quando faltam menos de 7 dias, e aí é rodar `uv run auth.py` de novo. Não há refresh token.
 - Roda local e não tem agendador. O `scheduled_at` diz a partir de quando o post pode sair, mas alguém precisa executar o `post.py`, à mão ou por um cron configurado na própria máquina.
 - Sobra uma janela pequena para publicação duplicada, entre o 2xx da API e a gravação do `post_id` no arquivo. Se o processo morrer exatamente ali, o post não tem ID gravado e sai de novo na próxima execução.
@@ -126,6 +139,24 @@ npx playwright install chromium
 
 node carousel_studio/render.mjs --input examples/carrossel-exemplo.html --output carrossel.pdf
 node infographic/render.mjs --input examples/infografico-exemplo.txt --output infografico.png
+```
+
+### Configurar pra você
+
+Com o Claude Code aberto na pasta do projeto, rode `/criar-voz`. Ele pede pelo menos 3 textos que você escreveu, faz 7 perguntas sobre tom e público, gera `.claude/skills/voz-<seu-nome>/SKILL.md`, testa em até 3 rodadas com as suas correções e grava a identidade visual em `data/identidade.md`. Nada disso vai pro Git.
+
+Pra medir um post depois da voz:
+
+```bash
+uv run padroes.py studio/for_review/antes/<slug>.md studio/for_review/<slug>.md --gravar
+uv run padroes.py --resumo history   # agregado dos posts publicados
+```
+
+Pra ver se saiu versão nova do humanizer:
+
+```bash
+uv run humanizer_sync.py --status
+uv run humanizer_sync.py --notas v4.0.0
 ```
 
 ### Caminho completo: publicar no LinkedIn
@@ -158,7 +189,7 @@ uv sync
 uv run pre-commit install   # ruff check e ruff format a cada commit
 
 make lint           # ruff check + ruff format --check
-make test           # pytest com cobertura de post.py e auth.py
+make test           # pytest com cobertura dos scripts Python
 make render-smoke   # renderiza examples/ e confere o PDF e o PNG (precisa de npm ci e do Chromium)
 make all            # os três
 ```
@@ -176,8 +207,10 @@ O CI (GitHub Actions, `.github/workflows/ci.yml`) roda `make lint` e `make test`
 | `posting/queue/` | Fila de publicação com agendamento |
 | `history/` | Registro imutável dos posts publicados |
 | `auth.py`, `post.py` | Autenticação e publicação na API do LinkedIn |
-| `examples/` | Post, carrossel e infográfico genéricos |
-| `tests/` | Testes do `auth.py` e do `post.py` e smoke test do render |
+| `padroes.py` | Conta padrões de escrita de IA antes e depois da voz |
+| `humanizer_sync.py` | Instala o humanizer numa versão fixa e avisa quando sai uma nova |
+| `examples/` | Post, carrossel e infográfico genéricos, o corpus do humanizer, a voz e a identidade de exemplo |
+| `tests/` | Testes dos scripts Python e smoke test do render |
 | `.claude/skills/` | As skills do pipeline |
 
 Cada pasta do fluxo tem um `CONTEXT.md` com o papel dela. O `CLAUDE.md` na raiz define a identidade do agente e as regras gerais.
@@ -192,7 +225,7 @@ Cada pasta do fluxo tem um `CONTEXT.md` com o papel dela. O `CLAUDE.md` na raiz 
 
 ## Privacidade
 
-Dados pessoais (currículo, certificados, foto, posts publicados) ficam só na minha máquina e estão no `.gitignore`. O repositório tem a engenharia do sistema e exemplos genéricos.
+Dados pessoais (currículo, certificados, foto, posts publicados, a minha voz e a minha identidade visual) ficam só na minha máquina e estão no `.gitignore`. O repositório tem a engenharia do sistema e exemplos genéricos.
 
 ## Licença
 
