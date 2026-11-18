@@ -1,10 +1,11 @@
-import os
 import json
+import os
 import shutil
 from datetime import datetime
 from pathlib import Path
-from dotenv import load_dotenv
+
 import requests
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -67,7 +68,10 @@ def upload_image(token: str, image_path: Path) -> str:
     with open(image_path, "rb") as f:
         upload_response = requests.put(
             upload_url,
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/octet-stream"},
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/octet-stream",
+            },
             data=f,
         )
     upload_response.raise_for_status()
@@ -163,7 +167,7 @@ def main():
 
         dest = PUBLISHED_DIR / post_file.name
         shutil.move(str(post_file), str(dest))
-        print(f"Publicado e movido para posting/published/")
+        print("Publicado e movido para posting/published/")
         posted += 1
 
     if posted == 0:

@@ -1,10 +1,11 @@
-import os
 import json
+import os
 import urllib.parse
 import webbrowser
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from dotenv import load_dotenv
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
 import requests
+from dotenv import load_dotenv
 
 load_dotenv()
 
