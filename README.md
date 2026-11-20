@@ -44,23 +44,7 @@ Pra mim, é a forma mais honesta de mostrar o que o linkeasy faz. Deixo ele se e
 
 ## Como funciona
 
-```mermaid
-flowchart TD
-    tema["Tema ou contexto"] --> redator["studio/: redator escreve o texto"]
-    redator --> voz["voz ativa: reescreve na voz da pessoa"]
-    voz --> humanizer["/humanizer: tira padrões de escrita de IA"]
-    redator -. antes .-> medida["padroes.py: conta padrões antes e depois"]
-    humanizer -. depois .-> medida
-    humanizer --> carrossel["/carrossel: PDF de 8 a 12 slides"]
-    humanizer --> infografico["/infografista: PNG de 1 imagem"]
-    carrossel --> fila["posting/queue/: post com scheduled_at"]
-    infografico --> fila
-    fila --> post["post.py"]
-    post --> api["API REST do LinkedIn"]
-    post --> history["history/: registro com post_id"]
-    auth["auth.py: OAuth 2.0"] --> token[".token.json"]
-    token --> post
-```
+![Diagrama do linkeasy. Dentro do Claude Code, o tema passa pelo redator, pela voz ativa e pelo humanizer, e o padroes.py conta os padrões de IA antes e depois. O texto vira carrossel em PDF ou infográfico em PNG e entra na fila. Fora do agente, o post.py publica na API do LinkedIn com o token do auth.py, grava o post_id e move o post para history/. O PDF do carrossel é publicado à mão](docs/img/arquitetura.png)
 
 Da ideia até a fila, é um pipeline de conteúdo orquestrado por agente de IA (Claude Code) com skills especializadas. Um agente só segue o fluxo descrito no `CLAUDE.md` e chama a skill de cada etapa. A publicação fica com dois scripts Python que rodam fora do agente.
 
